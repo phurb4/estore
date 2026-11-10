@@ -21,6 +21,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+.pytest_cache/
 
 # Node
 node_modules/
@@ -28,6 +29,7 @@ node_modules/
 # Archivos de configuracion local (no se suben)
 CLAUDE.md
 .claude/
+preview-local/
 
 # Editores y sistema
 .vscode/
