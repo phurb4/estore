@@ -162,7 +162,7 @@
                                     </li>
                                     <li>
                                         <div class="categories-bars-item">
-                                            <a href="#">SmartPhone & Smart TV</a>
+                                            <a href="#">Smart TV</a>
                                             <span>(5)</span>
                                         </div>
                                     </li>
@@ -185,7 +185,7 @@
                                 <a href="index.html" class="nav-item nav-link">Home</a>
                                 <a href="shop.html" class="nav-item nav-link">Shop</a>
                                 <a href="cart.html" class="nav-item nav-link active">Shop Cart</a>
-                                <a href="cheackout.html" class="nav-item nav-link">Cheackout</a>
+                                <a href="checkout.html" class="nav-item nav-link">Checkout</a>
                                 <a href="contact.html" class="nav-item nav-link me-2">Contact</a>
                                 <div class="nav-item dropdown d-block d-lg-none mb-3">
                                     <a href="#" class="nav-link" data-bs-toggle="dropdown"><span class="dropdown-toggle">All Category</span></a>
@@ -217,7 +217,7 @@
                                             </li>
                                             <li>
                                                 <div class="categories-bars-item">
-                                                    <a href="#">SmartPhone & Smart TV</a>
+                                                    <a href="#">Smart TV</a>
                                                     <span>(5)</span>
                                                 </div>
                                             </li>
@@ -259,7 +259,7 @@
                             <th scope="col">Handle</th>
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody data-cart-body>
                             <tr>
                                 <th scope="row">
                                     <p class="mb-0 py-4">Apple iPad Mini</p>
@@ -377,7 +377,7 @@
                                 <h1 class="display-6 mb-4">Cart <span class="fw-normal">Total</span></h1>
                                 <div class="d-flex justify-content-between mb-4">
                                     <h5 class="mb-0 me-4">Subtotal:</h5>
-                                    <p class="mb-0">$96.00</p>
+                                    <p class="mb-0" data-cart-subtotal>$96.00</p>
                                 </div>
                                 <div class="d-flex justify-content-between">
                                     <h5 class="mb-0 me-4">Shipping</h5>
@@ -389,9 +389,9 @@
                             </div>
                             <div class="py-4 mb-4 border-top border-bottom d-flex justify-content-between">
                                 <h5 class="mb-0 ps-4 me-4">Total</h5>
-                                <p class="mb-0 pe-4">$99.00</p>
+                                <p class="mb-0 pe-4" data-cart-total>$99.00</p>
                             </div>
-                            <button class="btn btn-primary rounded-pill px-4 py-3 text-uppercase mb-4 ms-4" type="button">Proceed Checkout</button>
+                            <button class="btn btn-primary rounded-pill px-4 py-3 text-uppercase mb-4 ms-4" type="button" data-checkout-link>Proceed Checkout</button>
                         </div>
                     </div>
                 </div>
@@ -534,6 +534,8 @@
     
 
     <!-- Template Javascript -->
+    <script src="config.js"></script>
+    <script src="js/store.js"></script>
     <script src="js/main.js"></script>
     </body>
 

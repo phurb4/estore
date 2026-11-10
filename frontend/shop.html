@@ -162,7 +162,7 @@
                                     </li>
                                     <li>
                                         <div class="categories-bars-item">
-                                            <a href="#">SmartPhone & Smart TV</a>
+                                            <a href="#">Smart TV</a>
                                             <span>(5)</span>
                                         </div>
                                     </li>
@@ -185,7 +185,7 @@
                                 <a href="index.html" class="nav-item nav-link">Home</a>
                                 <a href="shop.html" class="nav-item nav-link active">Shop</a>
                                 <a href="cart.html" class="nav-item nav-link">Shop Cart</a>
-                                <a href="cheackout.html" class="nav-item nav-link">Cheackout</a>
+                                <a href="checkout.html" class="nav-item nav-link">Checkout</a>
                                 <a href="contact.html" class="nav-item nav-link me-2">Contact</a>
                                 <div class="nav-item dropdown d-block d-lg-none mb-3">
                                     <a href="#" class="nav-link" data-bs-toggle="dropdown"><span class="dropdown-toggle">All Category</span></a>
@@ -217,7 +217,7 @@
                                             </li>
                                             <li>
                                                 <div class="categories-bars-item">
-                                                    <a href="#">SmartPhone & Smart TV</a>
+                                                    <a href="#">Smart TV</a>
                                                     <span>(5)</span>
                                                 </div>
                                             </li>
@@ -382,7 +382,7 @@
                                 </li>
                                 <li>
                                     <div class="categories-item">
-                                        <a href="#" class="text-dark"><i class="fas fa-apple-alt text-secondary me-2"></i>SmartPhone & Smart TV</a>
+                                        <a href="#" class="text-dark"><i class="fas fa-apple-alt text-secondary me-2"></i>Smart TV</a>
                                         <span>(5)</span>
                                     </div>
                                 </li>
@@ -437,7 +437,7 @@
                             </div>
                             <div class="additional-product-item">
                                 <input type="radio" class="me-2" id="Categories-5" name="Categories-1" value="Beverages">
-                                <label for="Categories-5" class="text-dark"> SmartPhone & Smart TV</label>
+                                <label for="Categories-5" class="text-dark"> Smart TV</label>
                             </div>
                         </div>
                         <div class="featured-product mb-4">
@@ -541,7 +541,7 @@
                         <div class="row g-4">
                             <div class="col-xl-7">
                                 <div class="input-group w-100 mx-auto d-flex">
-                                    <input type="search" class="form-control p-3" placeholder="keywords" aria-describedby="search-icon-1">
+                                    <input type="search" class="form-control p-3" placeholder="keywords" aria-describedby="search-icon-1" data-search-input maxlength="60" autocomplete="off" aria-label="Search products">
                                     <span id="search-icon-1" class="input-group-text p-3"><i class="fa fa-search"></i></span>
                                 </div>
                             </div>
@@ -574,8 +574,9 @@
                                 </ul>
                             </div>
                         </div>
+                        <div class="mb-4" data-catalog-status role="status" aria-live="polite"></div>
                         <div class="tab-content">
-                            <div id="tab-5" class="tab-pane fade show p-0 active">
+                            <div id="tab-5"class="tab-pane fade show p-0 active" data-catalog>
                                 <div class="row g-4 product">
                                     <div class="col-lg-4">
                                         <div class="product-item rounded wow fadeInUp" data-wow-delay="0.1s">
@@ -906,7 +907,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div id="tab-6" class="products tab-pane fade show p-0">
+                            <div id="tab-6" class="products tab-pane fade show p-0" data-catalog>
                                 <div class="row g-4 products-mini">
                                     <div class="col-lg-6">
                                         <div class="products-mini-item border">
@@ -1445,6 +1446,8 @@
     
 
     <!-- Template Javascript -->
+    <script src="config.js"></script>
+    <script src="js/store.js"></script>
     <script src="js/main.js"></script>
     </body>
 
