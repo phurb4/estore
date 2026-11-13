@@ -167,8 +167,14 @@
 
     function stripWow(root) {
         [root].concat([].slice.call(root.querySelectorAll(".wow"))).forEach(function (el) {
-            el.classList.remove("wow", "fadeInUp", "fadeIn");
+            el.classList.remove("wow", "fadeInUp", "fadeIn", "animated");
             el.removeAttribute("data-wow-delay");
+            // WOW.js hides every .wow element with inline styles until it is
+            // scrolled into view. If the card template was captured while it
+            // was hidden, the copies would stay invisible, so clear them.
+            el.style.removeProperty("visibility");
+            el.style.removeProperty("animation-delay");
+            el.style.removeProperty("animation-name");
         });
     }
 
