@@ -10,7 +10,7 @@ RUN groupadd --system --gid 10001 app \
 
 WORKDIR /srv
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --require-hashes -r requirements.txt
 COPY app ./app
 
 USER 10001:10001
