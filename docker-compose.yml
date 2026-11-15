@@ -55,7 +55,19 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    # No healthcheck: not confirmed that the image ships a suitable tool.
+    # The image has no curl; Python is there. Host and port come from the
+    # same variables uvicorn uses. A non-2xx answer makes urlopen raise, so
+    # the check fails.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os, urllib.request; urllib.request.urlopen('http://' + os.environ['UVICORN_HOST'] + ':' + os.environ['UVICORN_PORT'] + '/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   frontend:
     image: estore-frontend:0.1.0

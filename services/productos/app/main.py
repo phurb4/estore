@@ -1,4 +1,4 @@
-"""Products service: one endpoint, GET /products.
+"""Products service: GET /products, plus GET /health for container checks.
 
 Run with:  python -m uvicorn app.main:create_app --factory
 Configuration comes only from environment variables (see config.py).
@@ -76,6 +76,12 @@ def create_app(
             "Unhandled error on %s: %s", request.url.path, type(exc).__name__, exc_info=exc
         )
         return JSONResponse({"detail": "Internal server error"}, status_code=500)
+
+    @app.get("/health")
+    def health():
+        # Liveness only: no database access, no data. Used by the container
+        # healthcheck.
+        return {"status": "ok"}
 
     @app.get("/products", response_model=list[ProductOut])
     def list_products():
