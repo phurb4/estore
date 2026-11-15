@@ -11,12 +11,16 @@ services:
       POSTGRES_USER: ${DB_USER:?Set DB_USER}
       POSTGRES_DB: ${DB_NAME:?Set DB_NAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      # Read-only role for the API, created by 03-api-role.sh.
+      API_DB_USER: ${API_DB_USER:?Set API_DB_USER}
+      API_DB_PASSWORD: ${API_DB_PASSWORD:?Set API_DB_PASSWORD}
     volumes:
       # PostgreSQL 18+ keeps its data under /var/lib/postgresql.
       - db-data:/var/lib/postgresql
       # Schema and seed run only the first time the volume is empty.
       - ./services/productos/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./services/productos/db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./services/productos/db/03-api-role.sh:/docker-entrypoint-initdb.d/03-api-role.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -31,8 +35,9 @@ services:
     environment:
       DB_HOST: ${DB_HOST:?Set DB_HOST}
       DB_PORT: ${DB_PORT:?Set DB_PORT}
-      DB_USER: ${DB_USER:?Set DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      # The API uses the read-only role, never the admin user.
+      DB_USER: ${API_DB_USER:?Set API_DB_USER}
+      DB_PASSWORD: ${API_DB_PASSWORD:?Set API_DB_PASSWORD}
       DB_NAME: ${DB_NAME:?Set DB_NAME}
       DB_SSLMODE: ${DB_SSLMODE:?Set DB_SSLMODE}
       CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:?Set CORS_ALLOWED_ORIGIN}
