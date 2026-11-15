@@ -526,7 +526,21 @@
         flashAdded(btn);
     });
 
+    // Price slider (shop.html): only shows the number, it does not filter yet.
+    function wirePriceRange() {
+        var range = document.getElementById("rangeInput");
+        var out = document.getElementById("amount");
+        if (!range || !out) return;
+        function show() {
+            var v = Number(range.value);
+            out.textContent = Number.isFinite(v) ? String(v) : "0";
+        }
+        range.addEventListener("input", show);
+        show();
+    }
+
     function init() {
+        wirePriceRange();
         var catalogs = document.querySelectorAll("[data-catalog]");
         var cartBody = document.querySelector("[data-cart-body]");
         var orderBody = document.querySelector("[data-order-body]");

@@ -1,0 +1,17 @@
+# Secrets and keys
+.env*
+*.pem
+*.key
+
+# Tooling and local files
+node_modules
+.git
+.gitignore
+.vscode
+.idea
+*.log
+*.local
+preview-local
+.dockerignore
+Dockerfile
+READ-ME.txt

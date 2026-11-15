@@ -1,0 +1,40 @@
+# Nginx server config, rendered at container start by the image's envsubst
+# step. NGINX_ENVSUBST_FILTER restricts it to API_BASE_URL, so Nginx's own
+# variables ($uri, $api_origin, ...) are left untouched.
+
+# Origin (scheme + host + port) of the API, derived from API_BASE_URL.
+# Empty when API_BASE_URL is a relative path: 'self' already covers it.
+map "${API_BASE_URL}" $api_origin {
+    default "";
+    "~^(?<origin>https?://[^/]+)" $origin;
+}
+
+server {
+    listen 8080;
+    server_name _;
+    server_tokens off;
+    autoindex off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Security headers. Declared only at server level: an add_header inside a
+    # location would drop these (Nginx does not merge them).
+    # Concessions / pending:
+    #  - style-src 'unsafe-inline': the template uses style="" attributes.
+    #  - TODO: add integrity + crossorigin to the CDN <script>/<link> tags.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://ajax.googleapis.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://use.fontawesome.com; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://use.fontawesome.com; img-src 'self' data:; connect-src 'self' $api_origin; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+
+    # Runtime config rendered from config.js.template (see Dockerfile).
+    location = /config.js {
+        alias /etc/nginx/conf.d/config.js;
+        default_type application/javascript;
+        expires -1;
+    }
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
