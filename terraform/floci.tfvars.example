@@ -1,0 +1,9 @@
+# Values for the local emulator (Floci). Copy this file to floci.tfvars
+# (git ignores *.tfvars) and run Terraform with -var-file=floci.tfvars.
+# The account below is the fictitious Floci account of this project, not a
+# real AWS account. Never put real account IDs or credentials in this repo.
+environment               = "floci"
+aws_region                = "us-east-1"
+aws_endpoint_url          = "http://127.0.0.1:4566"
+expected_account_id       = "204032801137"
+force_delete_repositories = true
