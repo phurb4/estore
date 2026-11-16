@@ -1,14 +1,23 @@
 # Nginx server config, rendered at container start by the image's envsubst
-# step. NGINX_ENVSUBST_FILTER restricts it to API_BASE_URL, PRODUCTS_UPSTREAM
-# and ORDERS_UPSTREAM, so Nginx's own variables ($uri, $api_origin, ...) are
-# left untouched. The browser talks only to this server: /api/products and
-# /api/orders are forwarded to the services (single entry point, no CORS).
+# step. NGINX_ENVSUBST_FILTER restricts it to API_BASE_URL, PRODUCTS_UPSTREAM,
+# ORDERS_UPSTREAM and COGNITO_UPSTREAM, so Nginx's own variables ($uri,
+# $api_origin, ...) are left untouched. The browser talks only to this server:
+# /api/products, /api/orders and /idp are forwarded (single entry point, no
+# CORS).
 
 # Origin (scheme + host + port) of the API, derived from API_BASE_URL.
 # Empty when API_BASE_URL is a relative path: 'self' already covers it.
 map "${API_BASE_URL}" $api_origin {
     default "";
     "~^(?<origin>https?://[^/]+)" $origin;
+}
+
+# Origin of the Cognito endpoint, same idea. Empty for a same-origin path
+# (/idp with the emulator) or when no endpoint is set; the official Cognito
+# address must be listed here for the browser to reach it.
+map "${COGNITO_ENDPOINT}" $cognito_origin {
+    default "";
+    "~^(?<cog_origin>https://[^/]+)" $cog_origin;
 }
 
 server {
@@ -25,7 +34,7 @@ server {
     # Concessions / pending:
     #  - style-src 'unsafe-inline': the template uses style="" attributes.
     #  - TODO: add integrity + crossorigin to the CDN <script>/<link> tags.
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://ajax.googleapis.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://use.fontawesome.com; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://use.fontawesome.com; img-src 'self' data:; connect-src 'self' $api_origin; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://ajax.googleapis.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://use.fontawesome.com; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://use.fontawesome.com; img-src 'self' data:; connect-src 'self' $api_origin $cognito_origin; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "no-referrer" always;
 
@@ -50,6 +59,19 @@ server {
         limit_except POST { deny all; }
         client_max_body_size 8k;
         proxy_pass ${ORDERS_UPSTREAM}/orders;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 10s;
+    }
+
+    # Cognito emulator (Floci) behind the same origin: the browser never talks
+    # to Floci directly, so no CORS and no extra address in connect-src. Only
+    # POST (the Cognito API is JSON over POST to a single URL); every other
+    # method, including OPTIONS, is denied. Not used with real AWS, where the
+    # library calls the official Cognito endpoint.
+    location = /idp {
+        limit_except POST { deny all; }
+        client_max_body_size 8k;
+        proxy_pass ${COGNITO_UPSTREAM}/;
         proxy_connect_timeout 3s;
         proxy_read_timeout 10s;
     }

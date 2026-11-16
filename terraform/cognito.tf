@@ -6,10 +6,12 @@ locals {
   # Password rules. Customers are external, so the length is the main defence.
   password_minimum_length = 12
 
-  # Token lifetimes. Short access/ID tokens, longer refresh token.
-  access_token_minutes = 60
-  id_token_minutes     = 60
-  refresh_token_days   = 30
+  # Token lifetimes. The browser never keeps the refresh token, so the session
+  # lasts as long as the access/ID tokens (60 minutes). The refresh token is
+  # set to the minimum AWS allows (60 minutes) as a second line of defence.
+  access_token_minutes  = 60
+  id_token_minutes      = 60
+  refresh_token_minutes = 60
 }
 
 resource "aws_cognito_user_pool" "customers" {
@@ -79,12 +81,12 @@ resource "aws_cognito_user_pool_client" "web" {
 
   access_token_validity  = local.access_token_minutes
   id_token_validity      = local.id_token_minutes
-  refresh_token_validity = local.refresh_token_days
+  refresh_token_validity = local.refresh_token_minutes
 
   token_validity_units {
     access_token  = "minutes"
     id_token      = "minutes"
-    refresh_token = "days"
+    refresh_token = "minutes"
   }
 }
 

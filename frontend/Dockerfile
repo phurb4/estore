@@ -9,12 +9,16 @@
 #     -e API_BASE_URL=$env:API_BASE_URL `
 #     -e PRODUCTS_UPSTREAM=$env:PRODUCTS_UPSTREAM `
 #     -e ORDERS_UPSTREAM=$env:ORDERS_UPSTREAM `
+#     -e COGNITO_UPSTREAM=$env:COGNITO_UPSTREAM `
+#     -e COGNITO_USER_POOL_ID=$env:COGNITO_USER_POOL_ID `
+#     -e COGNITO_CLIENT_ID=$env:COGNITO_CLIENT_ID `
+#     -e COGNITO_ENDPOINT=$env:COGNITO_ENDPOINT `
 #     -p 127.0.0.1:8080:8080 estore-frontend:0.1.0
 FROM nginxinc/nginx-unprivileged:1.31.7-alpine
 
-# Only these three variables are substituted in templates (addresses, not
-# secrets): the public API path and the internal service addresses.
-ENV NGINX_ENVSUBST_FILTER=^(API_BASE_URL|PRODUCTS_UPSTREAM|ORDERS_UPSTREAM)$
+# Only these variables are substituted in templates (addresses, not secrets):
+# the public API path and the internal service addresses.
+ENV NGINX_ENVSUBST_FILTER=^(API_BASE_URL|PRODUCTS_UPSTREAM|ORDERS_UPSTREAM|COGNITO_UPSTREAM|COGNITO_USER_POOL_ID|COGNITO_CLIENT_ID|COGNITO_ENDPOINT)$
 
 # Site files (explicit list: nothing else from the context enters the image).
 COPY --chown=root:root *.html LICENSE.txt /usr/share/nginx/html/
