@@ -496,7 +496,9 @@
             if (!lines.length) return notice(host, "warning", "Your cart is empty.");
             btn.disabled = true;
             api("POST", "/orders", {
-                items: lines.map(function (l) { return { product_id: l.id, quantity: l.qty }; })
+                // The Orders service requires a whole number for product_id.
+                // A non-numeric id becomes null and the server answers 422.
+                items: lines.map(function (l) { return { product_id: Number(l.id), quantity: l.qty }; })
             }).then(function (res) {
                 writeCart([]);
                 renderOrder(tbody, tpl, anchor, map);

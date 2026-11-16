@@ -1,6 +1,8 @@
 # Nginx server config, rendered at container start by the image's envsubst
-# step. NGINX_ENVSUBST_FILTER restricts it to API_BASE_URL, so Nginx's own
-# variables ($uri, $api_origin, ...) are left untouched.
+# step. NGINX_ENVSUBST_FILTER restricts it to API_BASE_URL, PRODUCTS_UPSTREAM
+# and ORDERS_UPSTREAM, so Nginx's own variables ($uri, $api_origin, ...) are
+# left untouched. The browser talks only to this server: /api/products and
+# /api/orders are forwarded to the services (single entry point, no CORS).
 
 # Origin (scheme + host + port) of the API, derived from API_BASE_URL.
 # Empty when API_BASE_URL is a relative path: 'self' already covers it.
@@ -32,6 +34,24 @@ server {
         alias /etc/nginx/conf.d/config.js;
         default_type application/javascript;
         expires -1;
+    }
+
+    # API gateway. Exact paths and methods only: nothing else is forwarded.
+    # Do not add add_header inside these blocks (it would drop the security
+    # headers declared above).
+    location = /api/products {
+        limit_except GET { deny all; }
+        proxy_pass ${PRODUCTS_UPSTREAM}/products;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 10s;
+    }
+
+    location = /api/orders {
+        limit_except POST { deny all; }
+        client_max_body_size 8k;
+        proxy_pass ${ORDERS_UPSTREAM}/orders;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 10s;
     }
 
     location / {

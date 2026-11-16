@@ -14,6 +14,9 @@ services:
       # Read-only role for the API, created by 03-api-role.sh.
       API_DB_USER: ${API_DB_USER:?Set API_DB_USER}
       API_DB_PASSWORD: ${API_DB_PASSWORD:?Set API_DB_PASSWORD}
+      # Insert-only role for the Orders service, created by 05-orders-role.sh.
+      ORDERS_DB_USER: ${ORDERS_DB_USER:?Set ORDERS_DB_USER}
+      ORDERS_DB_PASSWORD: ${ORDERS_DB_PASSWORD:?Set ORDERS_DB_PASSWORD}
     volumes:
       # PostgreSQL 18+ keeps its data under /var/lib/postgresql.
       - db-data:/var/lib/postgresql
@@ -21,6 +24,8 @@ services:
       - ./services/productos/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./services/productos/db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
       - ./services/productos/db/03-api-role.sh:/docker-entrypoint-initdb.d/03-api-role.sh:ro
+      - ./services/pedidos/db/schema.sql:/docker-entrypoint-initdb.d/04-orders-schema.sql:ro
+      - ./services/pedidos/db/05-orders-role.sh:/docker-entrypoint-initdb.d/05-orders-role.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -48,8 +53,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "127.0.0.1:${API_HOST_PORT:-8000}:${UVICORN_PORT}"
+    # No published port: the browser reaches the API only through the frontend
+    # (Nginx, /api/products).
     read_only: true
     cap_drop:
       - ALL
@@ -69,10 +74,52 @@ services:
       retries: 3
       start_period: 10s
 
+  pedidos:
+    image: estore-pedidos:0.1
+    environment:
+      DB_HOST: ${DB_HOST:?Set DB_HOST}
+      DB_PORT: ${DB_PORT:?Set DB_PORT}
+      # The Orders service uses its own insert-only role, never the admin user.
+      DB_USER: ${ORDERS_DB_USER:?Set ORDERS_DB_USER}
+      DB_PASSWORD: ${ORDERS_DB_PASSWORD:?Set ORDERS_DB_PASSWORD}
+      DB_NAME: ${DB_NAME:?Set DB_NAME}
+      DB_SSLMODE: ${DB_SSLMODE:?Set DB_SSLMODE}
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:?Set CORS_ALLOWED_ORIGIN}
+      UVICORN_HOST: ${UVICORN_HOST:?Set UVICORN_HOST}
+      UVICORN_PORT: ${UVICORN_PORT:?Set UVICORN_PORT}
+    depends_on:
+      db:
+        condition: service_healthy
+    # No published port: the browser reaches Orders only through the frontend
+    # (Nginx, /api/orders).
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os, urllib.request; urllib.request.urlopen('http://' + os.environ['UVICORN_HOST'] + ':' + os.environ['UVICORN_PORT'] + '/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   frontend:
     image: estore-frontend:0.1.0
     environment:
       API_BASE_URL: ${API_BASE_URL:?Set API_BASE_URL}
+      # Internal addresses of the services: the Compose service name, never localhost.
+      PRODUCTS_UPSTREAM: http://api:${UVICORN_PORT:?Set UVICORN_PORT}
+      ORDERS_UPSTREAM: http://pedidos:${UVICORN_PORT:?Set UVICORN_PORT}
+    depends_on:
+      api:
+        condition: service_healthy
+      pedidos:
+        condition: service_healthy
     ports:
       - "127.0.0.1:${FRONTEND_HOST_PORT:-8080}:8080"
     read_only: true
