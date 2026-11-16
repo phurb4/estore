@@ -41,8 +41,9 @@ provider "aws" {
   dynamic "endpoints" {
     for_each = local.use_emulator ? [var.aws_endpoint_url] : []
     content {
-      ecr = endpoints.value
-      sts = endpoints.value
+      cognitoidp = endpoints.value
+      ecr        = endpoints.value
+      sts        = endpoints.value
     }
   }
 }

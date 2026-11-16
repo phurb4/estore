@@ -135,6 +135,10 @@ services:
     image: floci/floci:2.3.0
     environment:
       FLOCI_STORAGE_MODE: hybrid
+      # Unsigned calls (Cognito SignUp, ConfirmSignUp, InitiateAuth) carry no
+      # credentials, so Floci files them under this account. It must match the
+      # fictitious account of this project (expected_account_id in terraform).
+      FLOCI_DEFAULT_ACCOUNT_ID: "204032801137"
     volumes:
       - floci-data:/app/data
     ports:
