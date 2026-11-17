@@ -20,6 +20,10 @@
  *  - Every sign-in failure is reported with the same generic message.
  *  - Emails are lower-cased before every call (the pool is case sensitive).
  *  - Sign-up and resend never reveal whether an email already has an account.
+ *  - The TOTP secret is passed to the profile page once and never stored or
+ *    logged here. The library's cached user data (".userData" key) lives in the
+ *    same sessionStorage and is removed with the other keys on sign-out and
+ *    when the session has expired.
  */
 (function () {
     "use strict";
@@ -39,6 +43,9 @@
     var UPPER_RE = /[A-Z]/;
     var DIGIT_RE = /[0-9]/;
     var SYMBOL_RE = /[\^$*.\[\]{}()?"!@#%&\/\\,><':;|_~`=+\-]/;
+    // TOTP secret from AssociateSoftwareToken (API pattern [A-Za-z0-9]+, min 16).
+    var SECRET_RE = /^[A-Za-z0-9]{16,128}$/;
+    var DEVICE_NAME = "eStore authenticator";
     var KEY_PREFIX = "CognitoIdentityServiceProvider.";
 
     var lib = window.AmazonCognitoIdentity;
@@ -314,15 +321,104 @@
         });
     }
 
-    // ---------- Menu (Login / Log Out) ----------
+    // ---------- Two-step verification (TOTP) from the profile page ----------
+    // Calls back with the user that has a valid session, or null (the expired
+    // session is cleared, including the library's cached user data).
+    function activeUser(done) {
+        var user = pool ? pool.getCurrentUser() : null;
+        if (!user) return done(null);
+        user.getSession(function (err, session) {
+            if (err || !session || !session.isValid()) {
+                storage.clear();
+                return done(null);
+            }
+            done(user);
+        });
+    }
+
+    // Runs fn(user) with the signed-in user; reports a missing session through
+    // handlers.onSignedOut. All TOTP calls use the access token of that session.
+    function withUser(handlers, fn) {
+        if (!pool) return failWith(handlers);
+        activeUser(function (user) {
+            if (!user) {
+                if (handlers && typeof handlers.onSignedOut === "function") handlers.onSignedOut();
+                return;
+            }
+            fn(user);
+        });
+    }
+
+    function call(handlers, name, arg) {
+        if (handlers && typeof handlers[name] === "function") handlers[name](arg);
+    }
+
+    // Is TOTP turned on for the signed-in user? Always asks Cognito (no cache).
+    function mfaStatus(handlers) {
+        withUser(handlers, function (user) {
+            user.getUserData(function (err, data) {
+                // The list is left out of the answer when the user has no MFA.
+                var list = data ? data.UserMFASettingList : null;
+                if (err || !data || (list !== undefined && list !== null && !Array.isArray(list))) {
+                    return failWith(handlers);
+                }
+                call(handlers, "onStatus", Array.isArray(list) && list.indexOf("SOFTWARE_TOKEN_MFA") !== -1);
+            }, { bypassCache: true });
+        });
+    }
+
+    // Step 1 of turning TOTP on: Cognito generates the secret. It is handed to
+    // the caller once and never kept in this module, a storage or the console.
+    function startTotpSetup(handlers) {
+        withUser(handlers, function (user) {
+            user.associateSoftwareToken({
+                associateSecretCode: function (secret) {
+                    if (typeof secret !== "string" || !SECRET_RE.test(secret)) return failWith(handlers);
+                    call(handlers, "onSecret", secret);
+                },
+                onFailure: function () { failWith(handlers); }
+            });
+        });
+    }
+
+    // Step 2: check the 6-digit code from the authenticator app, then make TOTP
+    // the preferred MFA method. TOTP is only on when both calls succeed.
+    function confirmTotpSetup(code, handlers) {
+        if (!validCode(code)) return failWith(handlers);
+        withUser(handlers, function (user) {
+            user.verifySoftwareToken(code, DEVICE_NAME, {
+                onSuccess: function (data) {
+                    if (!data || data.Status !== "SUCCESS") return failWith(handlers);
+                    user.setUserMfaPreference(undefined, { Enabled: true, PreferredMfa: true }, function (err) {
+                        if (err) return failWith(handlers);
+                        call(handlers, "onSuccess");
+                    });
+                },
+                onFailure: function () { failWith(handlers); }
+            });
+        });
+    }
+
+    function disableTotp(handlers) {
+        withUser(handlers, function (user) {
+            user.setUserMfaPreference(undefined, { Enabled: false, PreferredMfa: false }, function (err) {
+                if (err) return failWith(handlers);
+                call(handlers, "onSuccess");
+            });
+        });
+    }
+
+    // ---------- Menu (Login / My profile / Log Out) ----------
     function refreshMenu() {
         var loginLink = document.getElementById("nav-login");
         var logoutLink = document.getElementById("nav-logout");
+        var profileLink = document.getElementById("nav-profile");
         if (!loginLink || !logoutLink) return;
         currentEmail(function (email) {
             var signedIn = email !== null;
             loginLink.classList.toggle("d-none", signedIn);
             logoutLink.classList.toggle("d-none", !signedIn);
+            if (profileLink) profileLink.classList.toggle("d-none", !signedIn);
         });
     }
 
@@ -362,6 +458,10 @@
         login: login,
         submitTotp: submitTotp,
         logout: logout,
+        mfaStatus: mfaStatus,
+        startTotpSetup: startTotpSetup,
+        confirmTotpSetup: confirmTotpSetup,
+        disableTotp: disableTotp,
         currentEmail: currentEmail,
         onChange: onChange
     });
