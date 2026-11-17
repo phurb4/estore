@@ -22,6 +22,12 @@ resource "aws_cognito_user_pool" "customers" {
   username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
 
+  # "A@x.com" and "a@x.com" are the same customer. The frontend also lowercases
+  # emails; this makes the pool enforce it for direct API calls too.
+  username_configuration {
+    case_sensitive = false
+  }
+
   # Customers register themselves (no invitation by an administrator).
   admin_create_user_config {
     allow_admin_create_user_only = false
