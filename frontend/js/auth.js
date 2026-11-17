@@ -18,6 +18,8 @@
  *  - The password is passed straight to the library and dropped. It is never
  *    kept in a field of this module or logged.
  *  - Every sign-in failure is reported with the same generic message.
+ *  - Emails are lower-cased before every call (the pool is case sensitive).
+ *  - Sign-up and resend never reveal whether an email already has an account.
  */
 (function () {
     "use strict";
@@ -29,6 +31,14 @@
     var CODE_RE = /^[0-9]{6}$/;
     var MAX_EMAIL = 254;
     var MAX_PASSWORD = 256;
+    // Sign-up password policy. Convenience check only: Cognito enforces the
+    // real policy. Keep PASSWORD_MIN equal to local.password_minimum_length in
+    // terraform/cognito.tf (and the character rules to its password_policy).
+    var PASSWORD_MIN = 12;
+    var LOWER_RE = /[a-z]/;
+    var UPPER_RE = /[A-Z]/;
+    var DIGIT_RE = /[0-9]/;
+    var SYMBOL_RE = /[\^$*.\[\]{}()?"!@#%&\/\\,><':;|_~`=+\-]/;
     var KEY_PREFIX = "CognitoIdentityServiceProvider.";
 
     var lib = window.AmazonCognitoIdentity;
@@ -149,6 +159,18 @@
         return typeof value === "string" && CODE_RE.test(value);
     }
 
+    // The pool is case sensitive, so every email is sent in lower case. This
+    // keeps "A@x.com" and "a@x.com" as one account for everything done here.
+    function normalizeEmail(value) {
+        return typeof value === "string" ? value.trim().toLowerCase() : "";
+    }
+
+    function validPassword(value) {
+        return typeof value === "string" && value.length >= PASSWORD_MIN &&
+            value.length <= MAX_PASSWORD && LOWER_RE.test(value) && UPPER_RE.test(value) &&
+            DIGIT_RE.test(value) && SYMBOL_RE.test(value);
+    }
+
     // Calls back with the signed-in email, or null when there is no valid session.
     function currentEmail(callback) {
         if (!pool) return callback(null);
@@ -172,6 +194,7 @@
     // ---------- Sign in ----------
     // The password parameter goes straight into the library and is dropped.
     function login(email, password, handlers) {
+        email = normalizeEmail(email);
         if (!pool || !validEmail(email) || typeof password !== "string" ||
             password.length < 1 || password.length > MAX_PASSWORD) {
             password = null;
@@ -218,6 +241,51 @@
             },
             onFailure: function () { failWith(handlers); }
         }, "SOFTWARE_TOKEN_MFA");
+    }
+
+    // ---------- Sign up and confirmation ----------
+    // An address that is already registered is answered exactly like a new one
+    // (SignUp always reports it, see the Cognito docs), so the page never
+    // reveals whether an email has an account.
+    function signUp(email, password, handlers) {
+        email = normalizeEmail(email);
+        if (!pool || !validEmail(email) || !validPassword(password)) {
+            password = null;
+            return failWith(handlers);
+        }
+        var attributes = [new lib.CognitoUserAttribute({ Name: "email", Value: email })];
+        pool.signUp(email, password, attributes, null, function (err) {
+            if (!err || err.code === "UsernameExistsException") {
+                if (handlers && typeof handlers.onAccepted === "function") handlers.onAccepted();
+            } else {
+                failWith(handlers);
+            }
+        });
+        password = null;   // the library holds its own copy until the request ends
+    }
+
+    function confirmSignUp(email, code, handlers) {
+        email = normalizeEmail(email);
+        if (!pool || !validEmail(email) || !validCode(code)) return failWith(handlers);
+        var user = new lib.CognitoUser({ Username: email, Pool: pool, Storage: storage });
+        user.confirmRegistration(code, true, function (err) {
+            if (err) return failWith(handlers);
+            if (handlers && typeof handlers.onSuccess === "function") handlers.onSuccess();
+        });
+    }
+
+    // Always answers the same, whether or not the address has an account. Only
+    // rate limits and network failures are reported (they say nothing about it).
+    function resendCode(email, handlers) {
+        email = normalizeEmail(email);
+        if (!pool || !validEmail(email)) return failWith(handlers);
+        var user = new lib.CognitoUser({ Username: email, Pool: pool, Storage: storage });
+        user.resendConfirmationCode(function (err) {
+            var limited = err && (!err.code || err.code === "TooManyRequestsException" ||
+                err.code === "LimitExceededException");
+            if (limited) return failWith(handlers);
+            if (handlers && typeof handlers.onSent === "function") handlers.onSent();
+        });
     }
 
     // ---------- Sign out ----------
@@ -284,8 +352,13 @@
         available: !!pool,
         validEmail: validEmail,
         validCode: validCode,
+        validPassword: validPassword,
+        normalizeEmail: normalizeEmail,
         maxEmail: MAX_EMAIL,
         maxPassword: MAX_PASSWORD,
+        signUp: signUp,
+        confirmSignUp: confirmSignUp,
+        resendCode: resendCode,
         login: login,
         submitTotp: submitTotp,
         logout: logout,
