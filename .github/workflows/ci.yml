@@ -36,10 +36,15 @@ jobs:
       - name: Instalar dependencias del servicio (con hashes)
         run: python -m pip install --require-hashes -r requirements.txt
       - name: Instalar dependencias de prueba
-        # requirements-dev.txt no lleva hashes: se instalan aparte las lineas que no son "-r".
+        # pedidos: requirements-dev.txt lleva hashes. productos: sigue sin ellos
+        # (lineas "-r" aparte y sin --require-hashes).
         run: |
-          grep -v '^-r' requirements-dev.txt > "$RUNNER_TEMP/dev-requirements.txt"
-          python -m pip install -r "$RUNNER_TEMP/dev-requirements.txt"
+          if grep -q -- '--hash=' requirements-dev.txt; then
+            python -m pip install --require-hashes -r requirements-dev.txt
+          else
+            grep -v '^-r' requirements-dev.txt > "$RUNNER_TEMP/dev-requirements.txt"
+            python -m pip install -r "$RUNNER_TEMP/dev-requirements.txt"
+          fi
       - name: Correr las pruebas
         run: python -m pytest
 
