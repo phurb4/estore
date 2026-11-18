@@ -3,8 +3,9 @@
 # Runs once, on first start with an empty data volume, after the Products
 # schema/seed and the Orders schema (the tables must exist before the GRANT).
 # Name and password come from the environment; nothing is written here.
-# Least privilege: read products, insert orders. No UPDATE, DELETE or SELECT
-# on the order tables.
+# Least privilege: read products, insert and read orders. No UPDATE or DELETE.
+# SELECT on the order tables is safe only because row-level security (see
+# 04-orders-schema.sql) limits it to the rows of the customer in app.user_id.
 set -e
 
 : "${ORDERS_DB_USER:?Set ORDERS_DB_USER}"
@@ -20,5 +21,5 @@ CREATE ROLE :"role" LOGIN PASSWORD :'pw'
 GRANT CONNECT ON DATABASE :"DBNAME" TO :"role";
 GRANT USAGE ON SCHEMA public TO :"role";
 GRANT SELECT ON public.products TO :"role";
-GRANT INSERT ON public.orders, public.order_items TO :"role";
+GRANT INSERT, SELECT ON public.orders, public.order_items TO :"role";
 EOSQL

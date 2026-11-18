@@ -1,8 +1,12 @@
+import logging
+
 import psycopg
 import pytest
 from psycopg_pool import PoolTimeout
 
-from conftest import ALLOWED_ORIGIN, FakeRepository
+from app.auth import AuthUnavailable
+from app.db import OrderLimitExceeded
+from conftest import ALLOWED_ORIGIN, GOOD_TOKEN, SUB, FakeRepository, FakeVerifier
 
 
 def post(client, body):
@@ -126,8 +130,124 @@ def test_unexpected_error_gives_generic_500(make_client):
     assert "boom-secret" not in response.text
 
 
-def test_get_orders_is_not_allowed(make_client):
-    assert make_client(FakeRepository()).get("/orders").status_code == 405
+ONE_ITEM = {"items": [{"product_id": 1, "quantity": 1}]}
+
+
+# ---------- authentication ----------
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {},                                        # no header
+        {"Authorization": "Bearer"},
+        {"Authorization": "Basic aaaa.bbbb.cccc"},
+        {"Authorization": "Bearer not-a-jwt"},
+        {"Authorization": "Bearer wrong.token.value"},   # well formed, not accepted
+    ],
+)
+def test_order_without_a_valid_token_is_401(make_client, headers):
+    repo = FakeRepository()
+    client = make_client(repo, token=None)
+    response = client.post("/orders", json=ONE_ITEM, headers=headers)
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Authentication required"}
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert repo.calls == []
+
+
+def test_401_comes_before_body_validation(make_client):
+    repo = FakeRepository()
+    response = make_client(repo, token=None).post("/orders", json={"items": []})
+    assert response.status_code == 401
+    assert repo.calls == []
+
+
+def test_signing_keys_unavailable_is_503_with_a_fixed_message(make_client):
+    repo = FakeRepository()
+    client = make_client(repo, verifier=FakeVerifier(error=AuthUnavailable()))
+    response = post(client, ONE_ITEM)
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Service temporarily unavailable"}
+    assert repo.calls == []
+
+
+# ---------- the customer comes only from the verified token ----------
+def test_user_id_is_the_verified_sub(make_client):
+    repo = FakeRepository()
+    assert post(make_client(repo), ONE_ITEM).status_code == 201
+    assert repo.users == [SUB]
+
+
+@pytest.mark.parametrize("field", ["user_id", "userId", "sub", "owner"])
+def test_user_id_in_the_body_is_rejected(make_client, field):
+    repo = FakeRepository()
+    response = post(make_client(repo), {**ONE_ITEM, field: "someone-else"})
+    assert response.status_code == 422
+    assert repo.calls == []
+
+
+def test_user_id_in_an_item_is_rejected(make_client):
+    repo = FakeRepository()
+    item = {"product_id": 1, "quantity": 1, "user_id": "someone-else"}
+    assert post(make_client(repo), {"items": [item]}).status_code == 422
+    assert repo.calls == []
+
+
+def test_user_id_in_query_string_and_other_headers_is_ignored(make_client):
+    repo = FakeRepository()
+    response = make_client(repo).post(
+        "/orders?user_id=someone-else&sub=someone-else",
+        json=ONE_ITEM,
+        headers={"X-User-Id": "someone-else", "X-Forwarded-User": "someone-else"},
+    )
+    assert response.status_code == 201
+    assert repo.users == [SUB]
+
+
+# ---------- per-customer limit ----------
+def test_order_limit_gives_429_with_a_fixed_message(make_client):
+    repo = FakeRepository(error=OrderLimitExceeded())
+    response = post(make_client(repo), ONE_ITEM)
+    assert response.status_code == 429
+    assert response.json() == {"detail": "Order limit reached"}
+
+
+# ---------- the token never appears in logs or responses ----------
+SECRET_TOKEN = "aaaa.secret-marker-in-token.cccc"
+
+
+@pytest.mark.parametrize(
+    "verifier,repo_error",
+    [
+        (None, None),                                 # invalid token -> 401
+        (FakeVerifier(error=AuthUnavailable()), None),  # keys down -> 503
+        (None, RuntimeError("boom")),                 # unexpected -> 500
+    ],
+)
+def test_token_is_never_logged_or_echoed(make_client, caplog, verifier, repo_error):
+    caplog.set_level(logging.DEBUG)
+    token = GOOD_TOKEN if repo_error else SECRET_TOKEN
+    client = make_client(FakeRepository(error=repo_error), verifier=verifier, token=token)
+    response = post(client, ONE_ITEM)
+    assert response.status_code in (401, 503, 500)
+    assert "secret-marker-in-token" not in response.text
+    assert "secret-marker-in-token" not in caplog.text
+    assert GOOD_TOKEN not in caplog.text
+    assert "Bearer" not in caplog.text
+
+
+def test_insecure_jwks_flag_is_announced_in_the_log(settings, caplog):
+    from dataclasses import replace
+    from app.main import create_app
+
+    caplog.set_level(logging.WARNING)
+    create_app(replace(settings, cognito_allow_insecure_jwks=True), FakeRepository(), FakeVerifier())
+    assert "COGNITO_ALLOW_INSECURE_JWKS" in caplog.text
+
+
+def test_only_get_and_post_are_allowed_on_orders(make_client):
+    client = make_client(FakeRepository())
+    for method in ("put", "patch", "delete"):
+        assert getattr(client, method)("/orders").status_code == 405
 
 
 def test_no_docs_or_openapi(make_client):

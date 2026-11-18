@@ -6,6 +6,7 @@ are never accepted from the client: extra="forbid" rejects any extra field
 """
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -13,6 +14,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 MAX_ITEMS = 50
 MAX_QUANTITY = 99
+HISTORY_DEFAULT_LIMIT = 20
+HISTORY_MAX_LIMIT = 50
 
 
 class OrderItemIn(BaseModel):
@@ -53,3 +56,9 @@ class OrderOut(BaseModel):
     id: UUID
     total: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
     items: list[OrderLineOut]
+
+
+class OrderSummaryOut(OrderOut):
+    """An order in the customer's history. Never carries the user_id."""
+
+    created_at: datetime

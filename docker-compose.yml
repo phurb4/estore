@@ -35,6 +35,39 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # Disposable PostgreSQL for the integration tests (profile "test": it never
+  # starts with a plain "docker compose up"). Same image, schema and role
+  # scripts as "db", but no volume (its data lives in memory and is gone when
+  # the container is removed) and no published port: tests reach it by name
+  # from inside this network. Values come from the same variables as "db".
+  db-test:
+    profiles: ["test"]
+    image: postgres:18.6
+    environment:
+      POSTGRES_USER: ${DB_USER:?Set DB_USER}
+      POSTGRES_DB: ${DB_NAME:?Set DB_NAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      API_DB_USER: ${API_DB_USER:?Set API_DB_USER}
+      API_DB_PASSWORD: ${API_DB_PASSWORD:?Set API_DB_PASSWORD}
+      ORDERS_DB_USER: ${ORDERS_DB_USER:?Set ORDERS_DB_USER}
+      ORDERS_DB_PASSWORD: ${ORDERS_DB_PASSWORD:?Set ORDERS_DB_PASSWORD}
+    tmpfs:
+      - /var/lib/postgresql
+    volumes:
+      - ./services/productos/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./services/productos/db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./services/productos/db/03-api-role.sh:/docker-entrypoint-initdb.d/03-api-role.sh:ro
+      - ./services/pedidos/db/schema.sql:/docker-entrypoint-initdb.d/04-orders-schema.sql:ro
+      - ./services/pedidos/db/05-orders-role.sh:/docker-entrypoint-initdb.d/05-orders-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+
   api:
     image: estore-productos:0.1
     environment:
@@ -87,6 +120,18 @@ services:
       CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:?Set CORS_ALLOWED_ORIGIN}
       UVICORN_HOST: ${UVICORN_HOST:?Set UVICORN_HOST}
       UVICORN_PORT: ${UVICORN_PORT:?Set UVICORN_PORT}
+      # Token verification (Amazon Cognito access tokens). The issuer is the
+      # "iss" the tokens carry; the JWKS URL is where Orders fetches the public
+      # keys from inside this network (with the emulator: http://floci:..., so
+      # it differs from the issuer). The app client is the same one the browser
+      # uses (COGNITO_CLIENT_ID, also read by the frontend service).
+      COGNITO_ISSUER: ${COGNITO_ISSUER:?Set COGNITO_ISSUER}
+      COGNITO_JWKS_URL: ${COGNITO_JWKS_URL:?Set COGNITO_JWKS_URL}
+      COGNITO_APP_CLIENT_ID: ${COGNITO_CLIENT_ID:?Set COGNITO_CLIENT_ID}
+      # http is accepted for the issuer and the JWKS only when this is true.
+      # Local emulator only; leave it unset (false) with real AWS.
+      COGNITO_ALLOW_INSECURE_JWKS: ${COGNITO_ALLOW_INSECURE_JWKS:-false}
+      ORDERS_MAX_PER_HOUR: ${ORDERS_MAX_PER_HOUR:-10}
     depends_on:
       db:
         condition: service_healthy
