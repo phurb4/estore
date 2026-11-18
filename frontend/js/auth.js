@@ -336,6 +336,26 @@
         });
     }
 
+    // Calls back with the current ACCESS token (a string) or null when there is
+    // no valid session. The token is handed to the caller for one request and is
+    // not kept here: this module adds no copy of it in any variable or storage
+    // (the library's own session cache is the sessionStorage described above).
+    // The caller must send it only to the Orders API (Authorization: Bearer).
+    var JWT_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+    function getAccessToken(callback) {
+        activeUser(function (user) {
+            if (!user) return callback(null);
+            user.getSession(function (err, session) {
+                if (err || !session || !session.isValid()) {
+                    storage.clear();
+                    return callback(null);
+                }
+                var token = session.getAccessToken().getJwtToken();
+                callback(typeof token === "string" && token.length <= 4096 && JWT_RE.test(token) ? token : null);
+            });
+        });
+    }
+
     // Runs fn(user) with the signed-in user; reports a missing session through
     // handlers.onSignedOut. All TOTP calls use the access token of that session.
     function withUser(handlers, fn) {
@@ -463,6 +483,7 @@
         confirmTotpSetup: confirmTotpSetup,
         disableTotp: disableTotp,
         currentEmail: currentEmail,
+        getAccessToken: getAccessToken,
         onChange: onChange
     });
 })();

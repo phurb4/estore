@@ -42,7 +42,9 @@
     var API = resolveApi((window.APP_CONFIG || {}).API_BASE_URL);
 
     // ---------- API client ----------
-    function api(method, path, body) {
+    // token (optional): the Cognito access token, sent only as the
+    // Authorization header of this one request. It is never stored here.
+    function api(method, path, body, token) {
         if (!API) return Promise.reject(new Error("config"));
         var ctrl = new AbortController();
         var timer = setTimeout(function () { ctrl.abort(); }, TIMEOUT_MS);
@@ -55,6 +57,7 @@
             signal: ctrl.signal,
             headers: { "Accept": "application/json" }
         };
+        if (typeof token === "string" && token) opts.headers["Authorization"] = "Bearer " + token;
         if (body !== undefined) {
             opts.headers["Content-Type"] = "application/json";
             opts.body = JSON.stringify(body);
@@ -187,6 +190,25 @@
         div.setAttribute("data-notice", "");
         div.textContent = text;
         host.appendChild(div);
+    }
+
+    // Same as notice() but ends with a fixed link to the login page (the href
+    // is a constant, never built from data).
+    function loginNotice(host, text) {
+        notice(host, "warning", text + " ");
+        var div = host.querySelector("[data-notice]");
+        var a = document.createElement("a");
+        a.setAttribute("href", "login.html");
+        a.className = "alert-link";
+        a.textContent = "Sign in";
+        div.appendChild(a);
+    }
+
+    // Resolves with the access token, or null when nobody is signed in.
+    function getToken() {
+        var auth = window.EstoreAuth;
+        if (!auth || !auth.available || typeof auth.getAccessToken !== "function") return Promise.resolve(null);
+        return new Promise(function (resolve) { auth.getAccessToken(resolve); });
     }
 
     // ---------- Catalog ----------
@@ -495,10 +517,17 @@
             var host = btn.parentNode;
             if (!lines.length) return notice(host, "warning", "Your cart is empty.");
             btn.disabled = true;
-            api("POST", "/orders", {
-                // The Orders service requires a whole number for product_id.
-                // A non-numeric id becomes null and the server answers 422.
-                items: lines.map(function (l) { return { product_id: Number(l.id), quantity: l.qty }; })
+            var needSignIn = false;
+            getToken().then(function (token) {
+                if (!token) {
+                    needSignIn = true;
+                    throw new Error("auth");
+                }
+                return api("POST", "/orders", {
+                    // The Orders service requires a whole number for product_id.
+                    // A non-numeric id becomes null and the server answers 422.
+                    items: lines.map(function (l) { return { product_id: Number(l.id), quantity: l.qty }; })
+                }, token);
             }).then(function (res) {
                 writeCart([]);
                 renderOrder(tbody, tpl, anchor, map);
@@ -509,8 +538,12 @@
                 var oid = res && ID_RE.test(String(res.id)) ? " Order ID: " + String(res.id) : "";
                 notice(host, "success", "Order placed." + oid);
             }).catch(function (err) {
-                var msg = (err && (err.status === 401 || err.status === 403))
-                    ? "You need to sign in to place an order."
+                var status = err && err.status;
+                if (needSignIn || status === 401) {
+                    return loginNotice(host, "Please sign in to place an order.");
+                }
+                var msg = status === 429
+                    ? "Too many orders. Please wait a while before trying again."
                     : "The order could not be placed. Please try again later.";
                 notice(host, "danger", msg);
             }).finally(function () { btn.disabled = false; });

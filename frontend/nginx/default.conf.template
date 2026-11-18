@@ -20,6 +20,13 @@ map "${COGNITO_ENDPOINT}" $cognito_origin {
     "~^(?<cog_origin>https://[^/]+)" $cog_origin;
 }
 
+# Rate limit for /api/orders only (never /api/products). One bucket per client
+# address: 30 requests per minute with a burst of 10. NOTE: behind Docker or a load balancer the address
+# seen here is the proxy's, not the customer's; real client IPs (real_ip) are
+# configured with the Ingress in the Kubernetes step. The per-customer cap is
+# enforced by the Orders service (ORDERS_MAX_PER_HOUR).
+limit_req_zone $binary_remote_addr zone=orders:1m rate=30r/m;
+
 server {
     listen 8080;
     server_name _;
@@ -55,8 +62,13 @@ server {
         proxy_read_timeout 10s;
     }
 
+    # GET = order history, POST = new order. The Authorization header (Cognito
+    # access token) is forwarded as is; Nginx never inspects or logs it. Over
+    # the limit: 429.
     location = /api/orders {
-        limit_except POST { deny all; }
+        limit_except GET POST { deny all; }
+        limit_req zone=orders burst=10 nodelay;
+        limit_req_status 429;
         client_max_body_size 8k;
         proxy_pass ${ORDERS_UPSTREAM}/orders;
         proxy_connect_timeout 3s;
@@ -74,6 +86,13 @@ server {
         proxy_pass ${COGNITO_UPSTREAM}/;
         proxy_connect_timeout 3s;
         proxy_read_timeout 10s;
+    }
+
+    # Scripts and styles are revalidated on every load (Cache-Control: no-cache,
+    # answered with 304 when unchanged), so a rebuilt image is never hidden by a
+    # stale browser copy. expires, not add_header: see the note above.
+    location ~* \.(?:js|css)$ {
+        expires -1;
     }
 
     location / {
