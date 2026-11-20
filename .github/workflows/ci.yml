@@ -48,6 +48,92 @@ jobs:
       - name: Correr las pruebas
         run: python -m pytest
 
+  # Pruebas de integracion de Pedidos: seguridad por filas (RLS) contra un
+  # PostgreSQL real y validacion de tokens contra tokens reales de Floci.
+  # Todo es desechable: contrasenas aleatorias de esta corrida, sin secretos.
+  integration-pedidos:
+    name: Integration tests (pedidos, PostgreSQL + Floci)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/pedidos
+    env:
+      DB_NAME: estore
+      DB_PORT: "5432"
+      INTEGRATION_DB_HOST: 127.0.0.1
+      AWS_DEFAULT_REGION: us-east-1
+      # Claves de relleno: Floci no las valida y no son de ninguna cuenta real.
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      INTEGRATION_FLOCI_URL: http://127.0.0.1:4566
+      INTEGRATION_FLOCI_ISSUER_BASE: http://localhost:4566
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-python v7.1.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.13"
+      - name: Instalar dependencias del servicio y de prueba (con hashes)
+        run: |
+          python -m pip install --require-hashes -r requirements.txt
+          python -m pip install --require-hashes -r requirements-dev.txt
+      - name: Generar contrasenas desechables
+        working-directory: .
+        run: |
+          for name in DB_PASSWORD API_DB_PASSWORD ORDERS_DB_PASSWORD; do
+            value="$(openssl rand -hex 16)"
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+          echo "DB_USER=estore_admin" >> "$GITHUB_ENV"
+          echo "API_DB_USER=estore_api" >> "$GITHUB_ENV"
+          echo "ORDERS_DB_USER=estore_orders" >> "$GITHUB_ENV"
+      - name: Levantar PostgreSQL (mismo esquema y roles que Compose)
+        working-directory: .
+        run: |
+          docker run -d --name db-test \
+            -e POSTGRES_USER="$DB_USER" -e POSTGRES_DB="$DB_NAME" -e POSTGRES_PASSWORD="$DB_PASSWORD" \
+            -e API_DB_USER -e API_DB_PASSWORD -e ORDERS_DB_USER -e ORDERS_DB_PASSWORD \
+            --tmpfs /var/lib/postgresql \
+            -v "$PWD/services/productos/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro" \
+            -v "$PWD/services/productos/db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro" \
+            -v "$PWD/services/productos/db/03-api-role.sh:/docker-entrypoint-initdb.d/03-api-role.sh:ro" \
+            -v "$PWD/services/pedidos/db/schema.sql:/docker-entrypoint-initdb.d/04-orders-schema.sql:ro" \
+            -v "$PWD/services/pedidos/db/05-orders-role.sh:/docker-entrypoint-initdb.d/05-orders-role.sh:ro" \
+            -p 127.0.0.1:5432:5432 \
+            postgres:18.6
+          for i in $(seq 1 40); do
+            if docker exec db-test pg_isready -h 127.0.0.1 -U "$DB_USER" -d "$DB_NAME"; then exit 0; fi
+            sleep 3
+          done
+          docker logs db-test
+          exit 1
+      - name: Levantar Floci (emulador de AWS)
+        working-directory: .
+        run: |
+          docker run -d --name floci \
+            -e FLOCI_STORAGE_MODE=hybrid -e FLOCI_DEFAULT_ACCOUNT_ID=204032801137 \
+            -p 127.0.0.1:4566:4566 \
+            floci/floci:2.3.0
+          for i in $(seq 1 40); do
+            if curl -s -o /dev/null http://127.0.0.1:4566/; then exit 0; fi
+            sleep 3
+          done
+          docker logs floci
+          exit 1
+      - name: Correr las pruebas de integracion
+        run: python -m pytest -m integration -p no:cacheprovider
+      - name: Registros de los contenedores si algo fallo
+        if: failure()
+        working-directory: .
+        run: |
+          docker logs --tail 80 db-test || true
+          docker logs --tail 80 floci || true
+
   semgrep:
     name: SAST (Semgrep)
     runs-on: ubuntu-latest
