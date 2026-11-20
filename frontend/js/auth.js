@@ -428,17 +428,19 @@
         });
     }
 
-    // ---------- Menu (Login / My profile / Log Out) ----------
+    // ---------- Menu (Login / My profile / My orders / Log Out) ----------
     function refreshMenu() {
         var loginLink = document.getElementById("nav-login");
         var logoutLink = document.getElementById("nav-logout");
         var profileLink = document.getElementById("nav-profile");
+        var ordersLink = document.getElementById("nav-orders");
         if (!loginLink || !logoutLink) return;
         currentEmail(function (email) {
             var signedIn = email !== null;
             loginLink.classList.toggle("d-none", signedIn);
             logoutLink.classList.toggle("d-none", !signedIn);
             if (profileLink) profileLink.classList.toggle("d-none", !signedIn);
+            if (ordersLink) ordersLink.classList.toggle("d-none", !signedIn);
         });
     }
 
