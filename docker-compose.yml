@@ -32,6 +32,19 @@ services:
       timeout: 3s
       retries: 10
       start_period: 10s
+    # Hardening. The official image supports running as a non-root user
+    # (--user) as long as that user exists in the image and owns the data
+    # directory: 999 is the "postgres" user of the Debian image, and the
+    # data volume is already owned by it. So the container never runs as
+    # root, needs no capability, and only /tmp, the socket directory and the
+    # data volume are writable.
+    user: "999:999"
+    read_only: true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+      - /run/postgresql:uid=999,gid=999
     security_opt:
       - no-new-privileges:true
 
@@ -197,6 +210,21 @@ services:
       - floci-data:/app/data
     ports:
       - "127.0.0.1:${FLOCI_HOST_PORT:-4566}:4566"
+    # Hardening. The image starts as root only to re-own /app/data and then
+    # switches to its "floci" user (uid 1001) with chroot --userspec (see
+    # /usr/local/bin/docker-entrypoint.sh in the image). That needs exactly
+    # four capabilities; the emulator itself runs with none. Only /tmp and
+    # the data volume are writable.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - SYS_CHROOT
     security_opt:
       - no-new-privileges:true
     # /var/run/docker.sock is NOT mounted. Add it only when testing RDS, as a
