@@ -134,6 +134,64 @@ jobs:
           docker logs --tail 80 db-test || true
           docker logs --tail 80 floci || true
 
+  # Pruebas de integracion de Productos: el catalogo real (schema.sql y
+  # seed.sql) leido con el rol de solo lectura contra un PostgreSQL real.
+  # Todo es desechable: contrasenas aleatorias de esta corrida, sin secretos.
+  integration-productos:
+    name: Integration tests (productos, PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/productos
+    env:
+      DB_NAME: estore
+      DB_PORT: "5432"
+      # Dominio reservado (RFC 2606): la prueba no hace pedidos CORS reales.
+      CORS_ALLOWED_ORIGIN: https://shop.example.test
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-python v7.1.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.13"
+      - name: Instalar dependencias del servicio (con hashes) y de prueba
+        # requirements-dev.txt de productos no lleva hashes: se quita la linea "-r".
+        run: |
+          python -m pip install --require-hashes -r requirements.txt
+          grep -v '^-r' requirements-dev.txt > "$RUNNER_TEMP/dev-requirements.txt"
+          python -m pip install -r "$RUNNER_TEMP/dev-requirements.txt"
+      - name: Generar contrasenas desechables
+        working-directory: .
+        run: |
+          for name in ADMIN_DB_PASSWORD DB_PASSWORD ORDERS_DB_PASSWORD; do
+            value="$(openssl rand -hex 16)"
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+          # Las pruebas de Productos usan el rol de solo lectura, como la API.
+          echo "DB_USER=estore_api" >> "$GITHUB_ENV"
+          echo "DB_HOST=127.0.0.1" >> "$GITHUB_ENV"
+      - name: Levantar PostgreSQL (mismo esquema y roles que Compose)
+        working-directory: .
+        run: |
+          docker run -d --name db-test             -e POSTGRES_USER=estore_admin -e POSTGRES_DB="$DB_NAME" -e POSTGRES_PASSWORD="$ADMIN_DB_PASSWORD"             -e API_DB_USER="$DB_USER" -e API_DB_PASSWORD="$DB_PASSWORD"             -e ORDERS_DB_USER=estore_orders -e ORDERS_DB_PASSWORD="$ORDERS_DB_PASSWORD"             --tmpfs /var/lib/postgresql             -v "$PWD/services/productos/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro"             -v "$PWD/services/productos/db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro"             -v "$PWD/services/productos/db/03-api-role.sh:/docker-entrypoint-initdb.d/03-api-role.sh:ro"             -v "$PWD/services/pedidos/db/schema.sql:/docker-entrypoint-initdb.d/04-orders-schema.sql:ro"             -v "$PWD/services/pedidos/db/05-orders-role.sh:/docker-entrypoint-initdb.d/05-orders-role.sh:ro"             -p 127.0.0.1:5432:5432             postgres:18.6
+          for _ in $(seq 1 40); do
+            if docker exec db-test pg_isready -h 127.0.0.1 -U estore_admin -d "$DB_NAME"; then exit 0; fi
+            sleep 3
+          done
+          docker logs db-test
+          exit 1
+      - name: Correr las pruebas de integracion
+        run: python -m pytest -m integration -p no:cacheprovider
+      - name: Registros del contenedor si algo fallo
+        if: failure()
+        working-directory: .
+        run: docker logs --tail 80 db-test || true
+
   semgrep:
     name: SAST (Semgrep)
     runs-on: ubuntu-latest
