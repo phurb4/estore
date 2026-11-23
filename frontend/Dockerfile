@@ -34,4 +34,6 @@ COPY --chown=root:root nginx/default.conf.template /etc/nginx/templates/default.
 COPY --chown=root:root config.js /etc/nginx/templates/config.js.template
 
 EXPOSE 8080
-# Runs as the image's non-root user (nginx, uid 101).
+# Explicit non-root user (nginx, uid 101): the base image already uses it, but
+# stating it here lets image scanners (Trivy DS-0002) see it.
+USER 101
