@@ -44,6 +44,11 @@ server {
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://ajax.googleapis.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://use.fontawesome.com; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://use.fontawesome.com; img-src 'self' data:; connect-src 'self' $api_origin $cognito_origin; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "no-referrer" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Resource-Policy "same-origin" always;
+    # Cross-Origin-Embedder-Policy is NOT set on purpose: it could block the CDN
+    # libraries and cannot be checked without a browser.
 
     # Runtime config rendered from config.js.template (see Dockerfile).
     location = /config.js {

@@ -42,6 +42,17 @@ variable "db_instance_class" {
   default     = "db.t4g.micro"
 }
 
+variable "state_bucket_name" {
+  description = "Name of the S3 bucket that holds the Terraform state (the same value as bucket in the .tfbackend file; a backend block cannot read variables, so it is repeated here for the IAM policy)."
+  type        = string
+}
+
+variable "state_key" {
+  description = "Object key of the state file (must match key in backend.tf)."
+  type        = string
+  default     = "estore/terraform.tfstate"
+}
+
 variable "db_subnet_group_name" {
   description = "Name of an existing DB subnet group (private subnets). Optional only for the emulator; REQUIRED on real AWS, otherwise RDS lands in the default VPC."
   type        = string

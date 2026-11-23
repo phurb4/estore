@@ -167,6 +167,33 @@ data "aws_iam_policy_document" "admin_temporary" {
     resources = ["arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${local.project}/*"]
   }
 
+  # Remote state (backend.tf, use_lockfile): list the bucket, and read, write
+  # and delete only the state object and its lock file. No s3:*.
+  statement {
+    sid       = "ListStateBucket"
+    actions   = ["s3:ListBucket"]
+    resources = ["arn:aws:s3:::${var.state_bucket_name}"]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["${local.project}/*"]
+    }
+  }
+
+  # The state object is only read and written; Terraform never deletes it.
+  statement {
+    sid       = "UseStateObject"
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["arn:aws:s3:::${var.state_bucket_name}/${var.state_key}"]
+  }
+
+  # The lock file is created and removed on every run.
+  statement {
+    sid       = "UseStateLockFile"
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["arn:aws:s3:::${var.state_bucket_name}/${var.state_key}.tflock"]
+  }
+
   # Roles of this project: READ ONLY. No iam write action on purpose: with
   # iam:PutRolePolicy on role/estore-* (which includes this very role) the role
   # could grant itself administrator rights. IAM changes go through a reviewed
