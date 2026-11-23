@@ -75,18 +75,17 @@ data "aws_iam_policy_document" "admin_temporary" {
     resources = ["*"]
   }
 
-  # Roles and policies, but only the ones of this project.
+  # Roles of this project: READ ONLY. No iam write action on purpose: with
+  # iam:PutRolePolicy on role/estore-* (which includes this very role) the role
+  # could grant itself administrator rights. IAM changes go through a reviewed
+  # terraform apply, not through this role.
   statement {
-    sid = "ManageProjectRoles"
+    sid = "ReadProjectRoles"
     actions = [
       "iam:GetRole",
       "iam:ListRolePolicies",
       "iam:ListAttachedRolePolicies",
       "iam:GetRolePolicy",
-      "iam:PutRolePolicy",
-      "iam:DeleteRolePolicy",
-      "iam:TagRole",
-      "iam:UntagRole",
     ]
     resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${local.project}-*"]
   }
