@@ -192,6 +192,75 @@ jobs:
         working-directory: .
         run: docker logs --tail 80 db-test || true
 
+  # Trivy: vulnerabilidades de dependencias, secretos y configuracion (Dockerfile
+  # y Terraform) en el repo, y vulnerabilidades de las imagenes construidas.
+  # Binario fijo (v0.76.2) con SHA256 verificado; sin trivy-action.
+  trivy:
+    name: Trivy (repo e imagenes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TRIVY_VERSION: "0.76.2"
+      TRIVY_SHA256: bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Instalar Trivy (version fija, SHA256 verificado)
+        run: |
+          file="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$file" \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/$file"
+          echo "${TRIVY_SHA256}  $RUNNER_TEMP/$file" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/trivy-bin"
+          tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/trivy-bin" trivy
+          echo "$RUNNER_TEMP/trivy-bin" >> "$GITHUB_PATH"
+      - name: Escanear el repo (dependencias, secretos y configuracion)
+        run: |
+          trivy fs --scanners vuln,secret,misconfig \
+            --severity HIGH,CRITICAL --exit-code 1 --timeout 10m .
+      - name: Construir las imagenes
+        run: |
+          docker build -t estore-productos:ci services/productos
+          docker build -t estore-pedidos:ci services/pedidos
+          docker build -t estore-frontend:ci frontend
+      - name: Escanear las imagenes
+        run: |
+          for image in estore-productos:ci estore-pedidos:ci estore-frontend:ci; do
+            trivy image --severity HIGH,CRITICAL --exit-code 1 \
+              --ignore-unfixed --timeout 10m "$image"
+          done
+
+  # Kubernetes: esquema valido (kubeconform) y cumplimiento del estandar Pod
+  # Security "restricted" como codigo (Trivy). Imagenes fijadas por digest.
+  k8s:
+    name: Manifiestos de Kubernetes (esquema y cumplimiento)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # kubeconform v0.7.0
+      - name: Validar el esquema (kubeconform)
+        run: |
+          docker run --rm -v "$PWD/k8s:/k8s:ro" \
+            ghcr.io/yannh/kubeconform@sha256:85dbef6b4b312b99133decc9c6fc9495e9fc5f92293d4ff3b7e1b30f5611823c \
+            -strict -summary -kubernetes-version 1.34.0 /k8s
+      # trivy 0.76.2
+      - name: Cumplimiento Pod Security restricted (Trivy)
+        # --exit-code no sirve con --compliance (sale 1 aun con todo en PASS):
+        # el paso falla si algun control del resumen queda en FAIL.
+        run: |
+          docker run --rm -v "$PWD/k8s:/k8s:ro" \
+            aquasec/trivy@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb \
+            config --quiet --compliance k8s-pss-restricted-0.1 --report summary /k8s \
+            | tee "$RUNNER_TEMP/pss.txt"
+          if grep -q ' FAIL ' "$RUNNER_TEMP/pss.txt"; then exit 1; fi
+          grep -q ' PASS ' "$RUNNER_TEMP/pss.txt"
+
   semgrep:
     name: SAST (Semgrep)
     runs-on: ubuntu-latest

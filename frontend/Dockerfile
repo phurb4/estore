@@ -16,6 +16,13 @@
 #     -p 127.0.0.1:8080:8080 estore-frontend:0.1.0
 FROM nginxinc/nginx-unprivileged:1.31.7-alpine
 
+# Security fixes: upgrade only the Alpine packages that carry HIGH/CRITICAL
+# vulnerabilities with a fix available. Needs root; the final USER 101 below
+# brings the container back to non-root.
+# nosemgrep: dockerfile.security.last-user-is-root.last-user-is-root -- root only for apk; the last USER (101) is non-root
+USER root
+RUN apk add --no-cache --upgrade brotli-libs curl libcurl libexpat libxml2 libxslt musl musl-utils zlib
+
 # Only these variables are substituted in templates (addresses, not secrets):
 # the public API path and the internal service addresses.
 ENV NGINX_ENVSUBST_FILTER=^(API_BASE_URL|PRODUCTS_UPSTREAM|ORDERS_UPSTREAM|COGNITO_UPSTREAM|COGNITO_USER_POOL_ID|COGNITO_CLIENT_ID|COGNITO_ENDPOINT)$
@@ -34,4 +41,6 @@ COPY --chown=root:root nginx/default.conf.template /etc/nginx/templates/default.
 COPY --chown=root:root config.js /etc/nginx/templates/config.js.template
 
 EXPOSE 8080
-# Runs as the image's non-root user (nginx, uid 101).
+# Explicit non-root user (nginx, uid 101): the base image already uses it, but
+# stating it here lets image scanners (Trivy DS-0002) see it.
+USER 101

@@ -1,0 +1,12 @@
+# Namespace of the store. Pod Security Admission enforces the "restricted"
+# profile (non-root, no privilege escalation, no capabilities, seccomp on):
+# a pod that does not comply is rejected at creation.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: estore
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

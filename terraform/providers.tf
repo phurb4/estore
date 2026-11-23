@@ -6,6 +6,11 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
+    # Generates the database master password (never written in the code).
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.7"
+    }
   }
 }
 
@@ -41,9 +46,13 @@ provider "aws" {
   dynamic "endpoints" {
     for_each = local.use_emulator ? [var.aws_endpoint_url] : []
     content {
-      cognitoidp = endpoints.value
-      ecr        = endpoints.value
-      sts        = endpoints.value
+      budgets        = endpoints.value
+      cognitoidp     = endpoints.value
+      ecr            = endpoints.value
+      iam            = endpoints.value
+      rds            = endpoints.value
+      secretsmanager = endpoints.value
+      sts            = endpoints.value
     }
   }
 }
