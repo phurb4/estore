@@ -19,6 +19,7 @@ FROM nginxinc/nginx-unprivileged:1.31.7-alpine
 # Security fixes: upgrade only the Alpine packages that carry HIGH/CRITICAL
 # vulnerabilities with a fix available. Needs root; the final USER 101 below
 # brings the container back to non-root.
+# nosemgrep: dockerfile.security.last-user-is-root.last-user-is-root -- root only for apk; the last USER (101) is non-root
 USER root
 RUN apk add --no-cache --upgrade brotli-libs curl libcurl libexpat libxml2 libxslt musl musl-utils zlib
 
