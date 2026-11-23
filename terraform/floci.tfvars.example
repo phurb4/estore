@@ -11,3 +11,4 @@ protect_database          = false
 secret_recovery_days      = 0
 # Reserved test domain (RFC 2606). With real AWS use your own address here.
 budget_alert_emails = ["budget-alerts@example.test"]
+state_bucket_name         = "estore-tfstate-floci"
