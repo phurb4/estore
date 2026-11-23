@@ -1,0 +1,18 @@
+# Backend values for the local emulator (Floci). Copy this file to
+# floci.tfbackend (git ignores *.tfbackend) and run:
+#   terraform init -backend-config=floci.tfbackend
+# Create the bucket first (Floci, never real AWS):
+#   aws --profile estore --endpoint-url http://127.0.0.1:4566 s3api create-bucket --bucket estore-tfstate-floci
+bucket = "estore-tfstate-floci"
+region = "us-east-1"
+
+endpoints = {
+  s3  = "http://127.0.0.1:4566"
+  sts = "http://127.0.0.1:4566"
+}
+
+use_path_style              = true
+skip_credentials_validation = true
+skip_requesting_account_id  = true
+skip_metadata_api_check     = true
+skip_region_validation      = true

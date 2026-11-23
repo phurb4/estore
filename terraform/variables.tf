@@ -30,6 +30,45 @@ variable "expected_account_id" {
   }
 }
 
+variable "db_engine_version" {
+  description = "PostgreSQL major version for RDS."
+  type        = string
+  default     = "18"
+}
+
+variable "db_instance_class" {
+  description = "RDS instance size."
+  type        = string
+  default     = "db.t4g.micro"
+}
+
+variable "protect_database" {
+  description = "true on real AWS: deletion protection on and a final snapshot on destroy. false only for the emulator."
+  type        = bool
+  default     = true
+}
+
+variable "budget_limit_usd" {
+  description = "Monthly cost limit in USD for the budget alarm."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.budget_limit_usd > 0
+    error_message = "budget_limit_usd must be greater than 0."
+  }
+}
+
+variable "budget_alert_emails" {
+  description = "Addresses that receive the budget alarms. Set them in the values file of each environment."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.budget_alert_emails) > 0
+    error_message = "Give at least one address in budget_alert_emails."
+  }
+}
+
 variable "force_delete_repositories" {
   description = "Allow destroying image repositories that still contain images. Only for the emulator."
   type        = bool
