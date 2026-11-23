@@ -26,6 +26,11 @@ resource "aws_db_instance" "main" {
   username = "estore_admin"
   password = random_password.db_master.result
 
+  # Network placement comes from variables (no IDs in the code). Required on
+  # real AWS; left empty only for the emulator.
+  db_subnet_group_name   = var.db_subnet_group_name
+  vpc_security_group_ids = var.db_security_group_ids
+
   # Never reachable from the Internet; services reach it from inside the VPC.
   publicly_accessible = false
   multi_az            = false

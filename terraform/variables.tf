@@ -42,6 +42,18 @@ variable "db_instance_class" {
   default     = "db.t4g.micro"
 }
 
+variable "db_subnet_group_name" {
+  description = "Name of an existing DB subnet group (private subnets). Optional only for the emulator; REQUIRED on real AWS, otherwise RDS lands in the default VPC."
+  type        = string
+  default     = null
+}
+
+variable "db_security_group_ids" {
+  description = "Security group IDs for the database (allow 5432 only from the services). Optional only for the emulator; REQUIRED on real AWS, otherwise the default security group is used."
+  type        = list(string)
+  default     = null
+}
+
 variable "protect_database" {
   description = "true on real AWS: deletion protection on and a final snapshot on destroy. false only for the emulator."
   type        = bool
