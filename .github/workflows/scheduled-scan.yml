@@ -1,0 +1,53 @@
+name: Scheduled scan
+
+# Weekly Trivy scan (new vulnerabilities appear without any code change) and on
+# demand. Same pinned binary and checks as the "trivy" job in ci.yml.
+# Scheduled runs only use the default branch and are disabled by GitHub after
+# 60 days without repository activity in a public repository.
+on:
+  schedule:
+    # Mondays 05:17 UTC (off the top of the hour, when GitHub is busiest).
+    - cron: "17 5 * * 1"
+  workflow_dispatch: {}
+
+# Least privilege: read-only access to the repository.
+permissions:
+  contents: read
+
+jobs:
+  trivy:
+    name: Trivy (repo e imagenes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TRIVY_VERSION: "0.76.2"
+      TRIVY_SHA256: bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Instalar Trivy (version fija, SHA256 verificado)
+        run: |
+          file="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$file" \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/$file"
+          echo "${TRIVY_SHA256}  $RUNNER_TEMP/$file" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/trivy-bin"
+          tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/trivy-bin" trivy
+          echo "$RUNNER_TEMP/trivy-bin" >> "$GITHUB_PATH"
+      - name: Escanear el repo (dependencias, secretos y configuracion)
+        run: |
+          trivy fs --scanners vuln,secret,misconfig \
+            --severity HIGH,CRITICAL --exit-code 1 --timeout 10m .
+      - name: Construir las imagenes
+        run: |
+          docker build -t estore-productos:ci services/productos
+          docker build -t estore-pedidos:ci services/pedidos
+          docker build -t estore-frontend:ci frontend
+      - name: Escanear las imagenes
+        run: |
+          for image in estore-productos:ci estore-pedidos:ci estore-frontend:ci; do
+            trivy image --severity HIGH,CRITICAL --exit-code 1 \
+              --ignore-unfixed --timeout 10m "$image"
+          done
