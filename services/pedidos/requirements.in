@@ -5,3 +5,4 @@ pydantic==2.14.3
 psycopg[binary]==3.3.8
 psycopg-pool==3.3.3
 PyJWT[crypto]==2.15.1
+boto3==1.44.6

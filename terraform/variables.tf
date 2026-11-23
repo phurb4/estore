@@ -48,6 +48,17 @@ variable "protect_database" {
   default     = true
 }
 
+variable "secret_recovery_days" {
+  description = "Days a deleted secret stays recoverable: 0 (delete at once, emulator only) or 7 to 30."
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = var.secret_recovery_days == 0 || (var.secret_recovery_days >= 7 && var.secret_recovery_days <= 30)
+    error_message = "secret_recovery_days must be 0 or between 7 and 30."
+  }
+}
+
 variable "budget_limit_usd" {
   description = "Monthly cost limit in USD for the budget alarm."
   type        = number

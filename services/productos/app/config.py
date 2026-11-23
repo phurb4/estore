@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Mapping
+from typing import Callable, Mapping
 from urllib.parse import urlsplit
+
+from .db_secret import SecretError, is_valid_secret_id, read_db_credentials
 
 _REQUIRED = (
     "DB_HOST",
@@ -68,9 +70,35 @@ def _parse_origin(raw: str) -> str:
     return raw
 
 
-def load_settings(env: Mapping[str, str] | None = None) -> Settings:
+def _resolve_db_credentials(
+    source: Mapping[str, str],
+    secret_reader: Callable[[str], tuple[str, str]],
+) -> tuple[str, str]:
+    """(user, password): from Secrets Manager when DB_SECRET_ID is set, else from
+    DB_USER / DB_PASSWORD. Using both is refused: with a secret there must be no
+    password in the environment."""
+    secret_id = source.get("DB_SECRET_ID")
+    if not secret_id:
+        return source["DB_USER"], source["DB_PASSWORD"]
+    if source.get("DB_USER") or source.get("DB_PASSWORD"):
+        raise ConfigError("Set DB_SECRET_ID or DB_USER/DB_PASSWORD, not both")
+    if not is_valid_secret_id(secret_id):
+        raise ConfigError("DB_SECRET_ID is not a valid secret name")
+    try:
+        return secret_reader(secret_id)
+    except SecretError as exc:
+        raise ConfigError(str(exc)) from None
+
+
+def load_settings(
+    env: Mapping[str, str] | None = None,
+    secret_reader: Callable[[str], tuple[str, str]] = read_db_credentials,
+) -> Settings:
     source = os.environ if env is None else env
-    missing = [name for name in _REQUIRED if not source.get(name)]
+    required = _REQUIRED
+    if source.get("DB_SECRET_ID"):
+        required = tuple(n for n in _REQUIRED if n not in ("DB_USER", "DB_PASSWORD"))
+    missing = [name for name in required if not source.get(name)]
     if missing:
         raise ConfigError("Missing environment variables: " + ", ".join(missing))
 
@@ -78,11 +106,13 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     if sslmode not in _SSLMODES:
         raise ConfigError("DB_SSLMODE is not a valid value")
 
+    db_user, db_password = _resolve_db_credentials(source, secret_reader)
+
     return Settings(
         db_host=source["DB_HOST"],
         db_port=_parse_port(source["DB_PORT"]),
-        db_user=source["DB_USER"],
-        db_password=source["DB_PASSWORD"],
+        db_user=db_user,
+        db_password=db_password,
         db_name=source["DB_NAME"],
         db_sslmode=sslmode,
         cors_allowed_origin=_parse_origin(source["CORS_ALLOWED_ORIGIN"]),
