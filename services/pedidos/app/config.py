@@ -12,7 +12,12 @@ from dataclasses import dataclass, field
 from typing import Callable, Mapping
 from urllib.parse import urlsplit
 
-from .db_secret import SecretError, is_valid_secret_id, read_db_credentials
+from .db_secret import (
+    SecretError,
+    is_valid_secret_id,
+    read_db_credentials,
+    read_db_credentials_file,
+)
 
 _REQUIRED = (
     "DB_HOST",
@@ -134,18 +139,25 @@ def _parse_max_orders(raw: str | None) -> int:
 def _resolve_db_credentials(
     source: Mapping[str, str],
     secret_reader: Callable[[str], tuple[str, str]],
+    file_reader: Callable[[str], tuple[str, str]],
 ) -> tuple[str, str]:
-    """(user, password): from Secrets Manager when DB_SECRET_ID is set, else from
-    DB_USER / DB_PASSWORD. Using both is refused: with a secret there must be no
-    password in the environment."""
+    """(user, password) from one source: a mounted JSON file (DB_SECRET_FILE),
+    Secrets Manager (DB_SECRET_ID) or DB_USER / DB_PASSWORD. Mixing sources is
+    refused: with a secret there must be no password in the environment."""
+    secret_file = source.get("DB_SECRET_FILE")
     secret_id = source.get("DB_SECRET_ID")
-    if not secret_id:
+    if not secret_file and not secret_id:
         return source["DB_USER"], source["DB_PASSWORD"]
+    if secret_file and secret_id:
+        raise ConfigError("Set DB_SECRET_FILE or DB_SECRET_ID, not both")
     if source.get("DB_USER") or source.get("DB_PASSWORD"):
-        raise ConfigError("Set DB_SECRET_ID or DB_USER/DB_PASSWORD, not both")
-    if not is_valid_secret_id(secret_id):
-        raise ConfigError("DB_SECRET_ID is not a valid secret name")
+        name = "DB_SECRET_FILE" if secret_file else "DB_SECRET_ID"
+        raise ConfigError(f"Set {name} or DB_USER/DB_PASSWORD, not both")
     try:
+        if secret_file:
+            return file_reader(secret_file)
+        if not is_valid_secret_id(secret_id):
+            raise ConfigError("DB_SECRET_ID is not a valid secret name")
         return secret_reader(secret_id)
     except SecretError as exc:
         raise ConfigError(str(exc)) from None
@@ -154,10 +166,11 @@ def _resolve_db_credentials(
 def load_settings(
     env: Mapping[str, str] | None = None,
     secret_reader: Callable[[str], tuple[str, str]] = read_db_credentials,
+    file_reader: Callable[[str], tuple[str, str]] = read_db_credentials_file,
 ) -> Settings:
     source = os.environ if env is None else env
     required = _REQUIRED
-    if source.get("DB_SECRET_ID"):
+    if source.get("DB_SECRET_ID") or source.get("DB_SECRET_FILE"):
         required = tuple(n for n in _REQUIRED if n not in ("DB_USER", "DB_PASSWORD"))
     missing = [name for name in required if not source.get(name)]
     if missing:
@@ -171,7 +184,7 @@ def load_settings(
         "COGNITO_ALLOW_INSECURE_JWKS", source.get("COGNITO_ALLOW_INSECURE_JWKS")
     )
 
-    db_user, db_password = _resolve_db_credentials(source, secret_reader)
+    db_user, db_password = _resolve_db_credentials(source, secret_reader, file_reader)
 
     return Settings(
         db_host=source["DB_HOST"],

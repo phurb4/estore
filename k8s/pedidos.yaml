@@ -40,7 +40,9 @@ spec:
           env:
             # No password in the environment and no Kubernetes Secret: the
             # database credentials are the file /mnt/secrets/db-credentials (see
-            # secretproviderclass.yaml). The service must read that file.
+            # secretproviderclass.yaml); DB_SECRET_FILE tells the service where.
+            - name: DB_SECRET_FILE
+              value: /mnt/secrets/db-credentials
             - name: COGNITO_APP_CLIENT_ID
               valueFrom:
                 configMapKeyRef:
