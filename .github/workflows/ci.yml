@@ -247,8 +247,12 @@ jobs:
       - name: Validar el esquema (kubeconform)
         run: |
           docker run --rm -v "$PWD/k8s:/k8s:ro" \
+            -v "$PWD/.github/crd-schemas:/crd-schemas:ro" \
             ghcr.io/yannh/kubeconform@sha256:85dbef6b4b312b99133decc9c6fc9495e9fc5f92293d4ff3b7e1b30f5611823c \
-            -strict -summary -kubernetes-version 1.34.0 /k8s
+            -strict -summary -kubernetes-version 1.34.0 \
+            -schema-location default \
+            -schema-location '/crd-schemas/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /k8s
       # trivy 0.76.2
       - name: Cumplimiento Pod Security restricted (Trivy)
         # --exit-code no sirve con --compliance (sale 1 aun con todo en PASS):

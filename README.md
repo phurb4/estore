@@ -98,6 +98,8 @@ El vínculo con la Fase 2 será ese rol de solo lectura permanente y el de mayor
 
 El código propio se rige por la licencia del repositorio (`LICENSE`). La plantilla Electro conserva su licencia en `frontend/LICENSE.txt` y mantiene el enlace «Designed By HTML Codex» que ella exige.
 
+El archivo `.github/crd-schemas/secrets-store.csi.x-k8s.io/secretproviderclass_v1.json` es una copia local de un esquema del repositorio `datreeio/CRDs-catalog` (commit `04af58d`), con licencia MIT, Copyright (c) 2022 datree.io. Solo lo usa la validación de manifiestos del CI (kubeconform).
+
 ---
 
 <a id="english"></a>
@@ -198,3 +200,5 @@ The link with Phase 2 will be that permanent read-only role and the higher-privi
 ## Licenses
 
 The project's own code is covered by the repository license (`LICENSE`). The Electro template keeps its license in `frontend/LICENSE.txt` and keeps the "Designed By HTML Codex" link that it requires.
+
+The file `.github/crd-schemas/secrets-store.csi.x-k8s.io/secretproviderclass_v1.json` is a local copy of a schema from the `datreeio/CRDs-catalog` repository (commit `04af58d`), MIT License, Copyright (c) 2022 datree.io. It is used only by the CI manifest validation (kubeconform).
