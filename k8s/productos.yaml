@@ -40,7 +40,10 @@ spec:
               containerPort: 8000
           # No password in the environment and no Kubernetes Secret: the database
           # credentials are the file /mnt/secrets/db-credentials (see
-          # secretproviderclass.yaml). The service must read that file.
+          # secretproviderclass.yaml); DB_SECRET_FILE tells the service where.
+          env:
+            - name: DB_SECRET_FILE
+              value: /mnt/secrets/db-credentials
           envFrom:
             - configMapRef:
                 name: estore-config
