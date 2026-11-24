@@ -248,7 +248,10 @@ jobs:
         run: |
           docker run --rm -v "$PWD/k8s:/k8s:ro" \
             ghcr.io/yannh/kubeconform@sha256:85dbef6b4b312b99133decc9c6fc9495e9fc5f92293d4ff3b7e1b30f5611823c \
-            -strict -summary -kubernetes-version 1.34.0 /k8s
+            -strict -summary -kubernetes-version 1.34.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /k8s
       # trivy 0.76.2
       - name: Cumplimiento Pod Security restricted (Trivy)
         # --exit-code no sirve con --compliance (sale 1 aun con todo en PASS):

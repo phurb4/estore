@@ -38,16 +38,9 @@ spec:
             - name: http
               containerPort: 8000
           env:
-            - name: DB_USER
-              valueFrom:
-                configMapKeyRef:
-                  name: estore-config
-                  key: ORDERS_DB_USER
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: estore-db
-                  key: orders-password
+            # No password in the environment and no Kubernetes Secret: the
+            # database credentials are the file /mnt/secrets/db-credentials (see
+            # secretproviderclass.yaml). The service must read that file.
             - name: COGNITO_APP_CLIENT_ID
               valueFrom:
                 configMapKeyRef:
@@ -81,6 +74,17 @@ spec:
               port: http
             initialDelaySeconds: 10
             periodSeconds: 20
+          volumeMounts:
+            - name: db-credentials
+              mountPath: /mnt/secrets
+              readOnly: true
+      volumes:
+        - name: db-credentials
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: pedidos-db
 ---
 apiVersion: v1
 kind: Service
