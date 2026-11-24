@@ -26,10 +26,10 @@ spec:
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
-        runAsUser: 101
-        runAsGroup: 101
-        # Lets the user 101 write in the emptyDir volumes below.
-        fsGroup: 101
+        runAsUser: 10001
+        runAsGroup: 10001
+        # Lets the user 10001 write in the emptyDir volumes below.
+        fsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
       containers:
