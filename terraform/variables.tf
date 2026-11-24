@@ -108,3 +108,15 @@ variable "force_delete_repositories" {
   type        = bool
   default     = false
 }
+
+variable "eks_cluster_name" {
+  description = "Name of the EKS cluster for the Pod Identity associations. Leave null for the emulator (only the roles are created); set it on real AWS."
+  type        = string
+  default     = null
+}
+
+variable "k8s_namespace" {
+  description = "Kubernetes namespace of the services (see k8s/namespace.yaml)."
+  type        = string
+  default     = "estore"
+}
