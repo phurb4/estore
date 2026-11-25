@@ -4,6 +4,12 @@
 # $api_origin, ...) are left untouched. The browser talks only to this server:
 # /api/products, /api/orders and /idp are forwarded (single entry point, no
 # CORS).
+#
+# Upstream addresses are held in variables (set + proxy_pass $variable) and
+# resolved at request time through the resolver below. With a literal address
+# Nginx resolves the name once at startup and refuses to start if the service
+# does not exist yet; with a variable it starts anyway and answers 502 until
+# the service appears.
 
 # Origin (scheme + host + port) of the API, derived from API_BASE_URL.
 # Empty when API_BASE_URL is a relative path: 'self' already covers it.
@@ -32,6 +38,10 @@ server {
     server_name _;
     server_tokens off;
     autoindex off;
+
+    # DNS resolver for the upstream variables (set by the image entrypoint from
+    # /etc/resolv.conf). Names are re-resolved every 10 s; IPv6 lookups off.
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
 
     root /usr/share/nginx/html;
     index index.html;
@@ -62,7 +72,8 @@ server {
     # headers declared above).
     location = /api/products {
         limit_except GET { deny all; }
-        proxy_pass ${PRODUCTS_UPSTREAM}/products;
+        set $products_upstream "${PRODUCTS_UPSTREAM}";
+        proxy_pass $products_upstream/products$is_args$args;
         proxy_connect_timeout 3s;
         proxy_read_timeout 10s;
     }
@@ -75,7 +86,8 @@ server {
         limit_req zone=orders burst=10 nodelay;
         limit_req_status 429;
         client_max_body_size 8k;
-        proxy_pass ${ORDERS_UPSTREAM}/orders;
+        set $orders_upstream "${ORDERS_UPSTREAM}";
+        proxy_pass $orders_upstream/orders$is_args$args;
         proxy_connect_timeout 3s;
         proxy_read_timeout 10s;
     }
@@ -88,7 +100,8 @@ server {
     location = /idp {
         limit_except POST { deny all; }
         client_max_body_size 8k;
-        proxy_pass ${COGNITO_UPSTREAM}/;
+        set $cognito_upstream "${COGNITO_UPSTREAM}";
+        proxy_pass $cognito_upstream/$is_args$args;
         proxy_connect_timeout 3s;
         proxy_read_timeout 10s;
     }
