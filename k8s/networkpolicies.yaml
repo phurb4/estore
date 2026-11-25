@@ -1,7 +1,9 @@
 # Default deny, then open only what the store needs:
 #   Internet -> ingress controller -> frontend -> productos / pedidos -> database
-# NetworkPolicy is enforced only if the cluster's network plugin supports it
-# (kind's default plugin does not; use Calico or Cilium to see it in action).
+# NetworkPolicy is enforced only if the cluster's network plugin supports it.
+# kind's default plugin enforces it since kind v0.24 (tested on v0.33.0 with
+# Kubernetes 1.37); on other clusters use a plugin that supports it, such as
+# Calico or Cilium.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
