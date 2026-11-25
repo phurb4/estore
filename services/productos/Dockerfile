@@ -12,7 +12,7 @@ WORKDIR /srv
 COPY requirements.txt .
 # Security fix for zlib1g (Debian), only that package.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends --only-upgrade zlib1g \
+ && apt-get install -y --no-install-recommends --only-upgrade zlib1g libzstd1 \
  && rm -rf /var/lib/apt/lists/*
 # pip is removed after installing: its bundled copies of msgpack, urllib3 and
 # setuptools carried HIGH vulnerabilities, and the running service never needs pip.
