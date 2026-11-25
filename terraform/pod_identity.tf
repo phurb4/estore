@@ -18,6 +18,8 @@ locals {
 }
 
 data "aws_iam_policy_document" "trust_pod_identity" {
+  for_each = local.pod_identity_services
+
   statement {
     sid     = "AllowEksPodIdentity"
     actions = ["sts:AssumeRole", "sts:TagSession"]
@@ -31,6 +33,19 @@ data "aws_iam_policy_document" "trust_pod_identity" {
       variable = "aws:SourceAccount"
       values   = [data.aws_caller_identity.current.account_id]
     }
+    # Documented Pod Identity session tags (EKS User Guide, "Create IAM role
+    # with trust policy required by EKS Pod Identity"): only the pods of this
+    # service's namespace and service account can assume this role.
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/kubernetes-namespace"
+      values   = [var.k8s_namespace]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/kubernetes-service-account"
+      values   = [each.value.service_account]
+    }
   }
 }
 
@@ -39,7 +54,7 @@ resource "aws_iam_role" "pod_identity" {
 
   name                 = "${local.project}-pod-${each.key}"
   description          = "EKS Pod Identity role of the ${each.key} service: reads its own database secret."
-  assume_role_policy   = data.aws_iam_policy_document.trust_pod_identity.json
+  assume_role_policy   = data.aws_iam_policy_document.trust_pod_identity[each.key].json
   max_session_duration = 3600
 
   tags = { Service = each.key }
