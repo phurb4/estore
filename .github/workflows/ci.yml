@@ -279,3 +279,51 @@ jobs:
       # Reglas fijas (p/default), sin enviar metricas, y falla si hay hallazgos.
       - name: Escanear servicios y frontend
         run: semgrep scan --config p/default --metrics=off --error services frontend
+
+  # DAST pasivo (ZAP baseline) contra el frontend solo: el sitio estatico y sus
+  # cabeceras de seguridad. Los servicios y la base no participan (los upstreams
+  # apuntan a un puerto sin servicio: /api responde 502). Imagen de ZAP 2.17.0
+  # fijada por digest. Falla si ZAP marca algo en FAIL; los avisos (WARN)
+  # se muestran en el registro pero no hacen fallar el job (-I).
+  zap:
+    name: DAST (ZAP baseline, frontend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ZAP_IMAGE: ghcr.io/zaproxy/zaproxy@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Construir y arrancar el frontend
+        run: |
+          docker build -t estore-frontend:ci frontend
+          docker network create zapnet
+          docker run -d --name frontend --network zapnet \
+            --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --tmpfs /tmp --tmpfs /etc/nginx/conf.d:uid=101,gid=101,mode=0755 \
+            -e API_BASE_URL=/api \
+            -e PRODUCTS_UPSTREAM=http://127.0.0.1:9 \
+            -e ORDERS_UPSTREAM=http://127.0.0.1:9 \
+            -e COGNITO_UPSTREAM=http://127.0.0.1:9 \
+            -e COGNITO_USER_POOL_ID=us-east-1_TestPool1 \
+            -e COGNITO_CLIENT_ID=testclient0123456789abcdef01 \
+            -e COGNITO_ENDPOINT= \
+            estore-frontend:ci
+          for i in $(seq 1 30); do
+            docker exec frontend wget -q -O /dev/null http://127.0.0.1:8080/ && exit 0
+            sleep 1
+          done
+          docker logs frontend
+          exit 1
+      - name: ZAP baseline
+        run: |
+          mkdir -p "$RUNNER_TEMP/zap"
+          chmod 777 "$RUNNER_TEMP/zap"
+          docker run --rm --network zapnet -v "$RUNNER_TEMP/zap:/zap/wrk" \
+            "$ZAP_IMAGE" zap-baseline.py -t http://frontend:8080 \
+            -J zap-baseline.json -I
+      - name: Registros del frontend si algo fallo
+        if: failure()
+        run: docker logs --tail 80 frontend || true
