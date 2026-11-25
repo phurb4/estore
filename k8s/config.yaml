@@ -5,8 +5,8 @@
 #   DB_HOST, DB_NAME, DB_SSLMODE, CORS_ALLOWED_ORIGIN, COGNITO_ISSUER,
 #   COGNITO_JWKS_URL, COGNITO_CLIENT_ID, COGNITO_USER_POOL_ID,
 #   COGNITO_UPSTREAM, COGNITO_ENDPOINT, API_BASE_URL
-# Passwords never go in a ConfigMap: they come from the Secret "estore-db"
-# (keys api-password and orders-password), also created outside this repo.
+# Database user and password never go in a ConfigMap: each service reads them
+# from a JSON file mounted from AWS Secrets Manager (secretproviderclass.yaml).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -16,5 +16,3 @@ data:
   UVICORN_HOST: "0.0.0.0"
   UVICORN_PORT: "8000"
   DB_PORT: "5432"
-  API_DB_USER: "estore_api"
-  ORDERS_DB_USER: "estore_orders"
