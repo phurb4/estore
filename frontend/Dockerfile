@@ -23,9 +23,13 @@ FROM nginxinc/nginx-unprivileged:1.31.7-alpine
 USER root
 RUN apk add --no-cache --upgrade brotli-libs curl libcurl libexpat libxml2 libxslt musl musl-utils zlib
 
+# Makes the entrypoint fill NGINX_LOCAL_RESOLVERS from /etc/resolv.conf, used by
+# the resolver line in the Nginx template.
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+
 # Only these variables are substituted in templates (addresses, not secrets):
 # the public API path and the internal service addresses.
-ENV NGINX_ENVSUBST_FILTER=^(API_BASE_URL|PRODUCTS_UPSTREAM|ORDERS_UPSTREAM|COGNITO_UPSTREAM|COGNITO_USER_POOL_ID|COGNITO_CLIENT_ID|COGNITO_ENDPOINT)$
+ENV NGINX_ENVSUBST_FILTER=^(NGINX_LOCAL_RESOLVERS|API_BASE_URL|PRODUCTS_UPSTREAM|ORDERS_UPSTREAM|COGNITO_UPSTREAM|COGNITO_USER_POOL_ID|COGNITO_CLIENT_ID|COGNITO_ENDPOINT)$
 
 # Site files (explicit list: nothing else from the context enters the image).
 COPY --chown=root:root *.html LICENSE.txt /usr/share/nginx/html/

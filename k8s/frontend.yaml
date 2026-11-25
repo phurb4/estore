@@ -40,11 +40,13 @@ spec:
             - name: http
               containerPort: 8080
           env:
-            # Internal addresses: the Service names of this namespace.
+            # Internal addresses: full Service names. Nginx's resolver does not
+            # use the search domains, and the default domain cluster.local is
+            # assumed.
             - name: PRODUCTS_UPSTREAM
-              value: http://productos:8000
+              value: http://productos.estore.svc.cluster.local:8000
             - name: ORDERS_UPSTREAM
-              value: http://pedidos:8000
+              value: http://pedidos.estore.svc.cluster.local:8000
           envFrom:
             - configMapRef:
                 name: estore-env
