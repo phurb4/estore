@@ -40,9 +40,10 @@ spec:
             - name: http
               containerPort: 8080
           env:
-            # Internal addresses: full Service names. Nginx's resolver does not
-            # use the search domains, and the default domain cluster.local is
-            # assumed.
+            # Internal addresses: full Service names are used because Nginx
+            # resolves upstream names with its own DNS client, which may not
+            # apply the Pod's search domains. The default cluster domain
+            # cluster.local is assumed.
             - name: PRODUCTS_UPSTREAM
               value: http://productos.estore.svc.cluster.local:8000
             - name: ORDERS_UPSTREAM
